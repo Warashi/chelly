@@ -8,10 +8,17 @@ linters:
   disable:
     # keep-sorted start
     - depguard
+    - gochecknoglobals
+    - gochecknoinits
     - gomodguard
     - noinlineerr
     - wsl
     # keep-sorted end
+
+  settings:
+    exhaustruct:
+      exclude:
+        - '^github\.com/spf13/cobra\.Command$'
 
 formatters:
   enable:
