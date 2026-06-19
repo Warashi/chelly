@@ -102,6 +102,7 @@
             goEnv
             golangci-lint
             gomod2nix
+            just
             # keep-sorted end
           ];
           startup = {
