@@ -103,6 +103,29 @@ container_setup_cmd = "echo setup"
 	}
 }
 
+func TestLoadConfig_XDGConfigHome(t *testing.T) {
+	dir := t.TempDir()
+	chellyDir := filepath.Join(dir, "chelly")
+	writeConfigFile(t, chellyDir, `
+container_cmd = "podman"
+`)
+
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfg, err := cmd.LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	if cfg.ContainerCmd != testContainerCmdPodman {
+		t.Errorf("ContainerCmd: got %q, want %q", cfg.ContainerCmd, testContainerCmdPodman)
+	}
+
+	if cfg.ConfigHome != chellyDir {
+		t.Errorf("ConfigHome: got %q, want %q", cfg.ConfigHome, chellyDir)
+	}
+}
+
 func TestLoadConfigFrom_EnvVarOverridesConfigFile(t *testing.T) {
 	dir := t.TempDir()
 	writeConfigFile(t, dir, `

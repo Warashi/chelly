@@ -47,6 +47,10 @@ func DetectContainerCmd() string {
 }
 
 func chellyConfigDir() (string, error) {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "chelly"), nil
+	}
+
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("getting user config dir: %w", err)
