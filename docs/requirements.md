@@ -22,6 +22,27 @@ Run a command inside the chelly container.
 - Sets the container workdir to the current directory (configurable)
 - Detects stdin/stdout TTY and adds `--interactive --tty` automatically
 
+### `chelly config list`
+
+Print all current effective configuration values in TOML format.
+
+- Shows the resolved configuration after applying config file and environment variable overrides
+
+### `chelly config get <key>`
+
+Print the effective value of a single configuration key.
+
+- `key`: one of `container_cmd`, `config_home`, `workdir`, `additional_mounts`, `container_setup_cmd`
+- For `additional_mounts`, prints values as a comma-separated string
+
+### `chelly config set <key> <value>`
+
+Write a key-value pair to `config.toml`.
+
+- Creates the config file and its directory if they do not exist
+- For `additional_mounts`, `value` is a comma-separated list of `host:container` mount specs
+- Environment variable overrides still take precedence when reading back via `list`/`get`
+
 ## Configuration
 
 Config file: `$XDG_CONFIG_HOME/chelly/config.toml` (default: `$HOME/.config/chelly/config.toml`)
