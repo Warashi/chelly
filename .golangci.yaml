@@ -6,9 +6,12 @@ run:
 linters:
   default: all
   disable:
-    - wsl
+    # keep-sorted start
     - depguard
+    - gomodguard
     - noinlineerr
+    - wsl
+    # keep-sorted end
 
 formatters:
   enable:
