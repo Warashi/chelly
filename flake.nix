@@ -4,12 +4,12 @@
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
     };
-    nixpkgs = {
-      url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    };
     gomod2nix = {
       url = "github:nix-community/gomod2nix";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+    nixpkgs = {
+      url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     };
     # keep-sorted end
   };
