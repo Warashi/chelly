@@ -13,7 +13,7 @@ All commands live in the `cmd` package following a flat layout (package by featu
 | `cmd/root.go`     | Root `chelly` command registration                    |
 | `cmd/config.go`   | Config struct, loading from file and environment      |
 | `cmd/build.go`    | `chelly build` subcommand and args construction       |
-| `cmd/run.go`      | `chelly run` and `chelly runit` subcommands and args construction |
+| `cmd/run.go`      | `chelly run` subcommand and args construction         |
 
 ## Config loading
 
@@ -30,7 +30,7 @@ The public `LoadConfig()` resolves the config directory from `os.UserConfigDir()
 Arg-building logic is separated from execution:
 
 - `BuildArgs(cfg, noCache)` returns the `docker build ...` argument slice
-- `ContainerRunArgs(cfg, wd, forceTTY, isTTY, userArgs)` returns the `docker run ...` argument slice
+- `ContainerRunArgs(cfg, wd, isTTY, userArgs)` returns the `docker run ...` argument slice
 
 This makes unit testing straightforward: tests call these functions directly and assert the returned slices without any subprocess mocking.
 

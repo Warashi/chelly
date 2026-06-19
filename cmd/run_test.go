@@ -37,7 +37,7 @@ func TestContainerRunArgs_Default(t *testing.T) {
 	t.Parallel()
 
 	cfg := runConfig()
-	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, false, []string{cmdEcho, cmdHello})
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
 	want := []string{
 		cmdRun, flagRM,
 		flagVolume, volumeHomeMount,
@@ -56,7 +56,7 @@ func TestContainerRunArgs_WithTTY(t *testing.T) {
 	t.Parallel()
 
 	cfg := runConfig()
-	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, true, []string{cmdBash})
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, true, []string{cmdBash})
 	want := []string{
 		cmdRun, flagRM,
 		flagInteractive, flagTTY,
@@ -72,33 +72,13 @@ func TestContainerRunArgs_WithTTY(t *testing.T) {
 	}
 }
 
-func TestContainerRunArgs_ForceTTY(t *testing.T) {
-	t.Parallel()
-
-	cfg := runConfig()
-	got := cmd.ContainerRunArgs(cfg, testWorkDir, true, false, []string{shellSh})
-	want := []string{
-		cmdRun, flagRM,
-		flagInteractive, flagTTY,
-		flagVolume, volumeHomeMount,
-		flagVolume, testWorkDirMount,
-		flagWorkdir, testWorkDir,
-		imageChelly,
-		shellSh,
-	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("ContainerRunArgs: got %v, want %v", got, want)
-	}
-}
-
 func TestContainerRunArgs_AdditionalMounts(t *testing.T) {
 	t.Parallel()
 
 	cfg := runConfig()
 	cfg.AdditionalMounts = []string{"/host1:/cont1", "/host2:/cont2"}
 
-	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, false, []string{"ls"})
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
 		cmdRun, flagRM,
 		flagVolume, volumeHomeMount,
@@ -121,7 +101,7 @@ func TestContainerRunArgs_SetupCmdWithCommand(t *testing.T) {
 	cfg := runConfig()
 	cfg.ContainerSetupCmd = testSetupCmd
 
-	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, false, []string{cmdEcho, cmdHello})
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
 	want := []string{
 		cmdRun, flagRM,
 		flagVolume, volumeHomeMount,
@@ -143,7 +123,7 @@ func TestContainerRunArgs_SetupCmdWithoutCommand(t *testing.T) {
 	cfg := runConfig()
 	cfg.ContainerSetupCmd = testSetupCmd
 
-	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, false, []string{})
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{})
 	want := []string{
 		cmdRun, flagRM,
 		flagVolume, volumeHomeMount,
@@ -164,7 +144,7 @@ func TestContainerRunArgs_CustomWorkdir(t *testing.T) {
 	cfg := runConfig()
 	cfg.Workdir = testWorkspace
 
-	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, false, []string{"ls"})
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
 		cmdRun, flagRM,
 		flagVolume, volumeHomeMount,
@@ -179,27 +159,6 @@ func TestContainerRunArgs_CustomWorkdir(t *testing.T) {
 	}
 }
 
-func TestContainerRunArgs_RunitDefaultsToSh(t *testing.T) {
-	t.Parallel()
-
-	cfg := runConfig()
-	userArgs := []string{shellSh}
-	got := cmd.ContainerRunArgs(cfg, testWorkDir, true, false, userArgs)
-	want := []string{
-		cmdRun, flagRM,
-		flagInteractive, flagTTY,
-		flagVolume, volumeHomeMount,
-		flagVolume, testWorkDirMount,
-		flagWorkdir, testWorkDir,
-		imageChelly,
-		shellSh,
-	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("ContainerRunArgs (runit): got %v, want %v", got, want)
-	}
-}
-
 func TestContainerRunArgs_AllOptions(t *testing.T) {
 	t.Parallel()
 
@@ -211,7 +170,7 @@ func TestContainerRunArgs_AllOptions(t *testing.T) {
 		ContainerSetupCmd: "source /etc/profile",
 	}
 
-	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, false, []string{cmdBash, "-c", "echo hi"})
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdBash, "-c", "echo hi"})
 	want := []string{
 		cmdRun, flagRM,
 		flagVolume, volumeHomeMount,

@@ -22,13 +22,6 @@ Run a command inside the chelly container.
 - Sets the container workdir to the current directory (configurable)
 - Detects stdin/stdout TTY and adds `--interactive --tty` automatically
 
-### `chelly runit [command [args...]]`
-
-Start an interactive shell (or run a command) in the chelly container.
-
-- Same as `run`, but always forces `--interactive --tty`
-- Defaults to `sh` if no command is given
-
 ## Configuration
 
 Config file: `$XDG_CONFIG_HOME/chelly/config.toml` (default: `$HOME/.config/chelly/config.toml`)

@@ -33,18 +33,8 @@ var runCmd = &cobra.Command{
 	RunE:               runRun,
 }
 
-var runitCmd = &cobra.Command{
-	Use:   "runit [-- command [args...]]",
-	Short: "Start an interactive shell in the chelly container",
-	Long: `Start an interactive shell in the chelly container.
-Always forces --interactive --tty. Defaults to "sh" if no command is given.`,
-	DisableFlagParsing: true,
-	RunE:               runRunit,
-}
-
 func init() {
 	rootCmd.AddCommand(runCmd)
-	rootCmd.AddCommand(runitCmd)
 }
 
 // IsTTY reports whether f is connected to a terminal.
@@ -58,10 +48,10 @@ func IsTTY(f *os.File) bool {
 }
 
 // ContainerRunArgs returns the argument slice for the container run command.
-func ContainerRunArgs(cfg Config, workDir string, forceTTY bool, isTTY bool, userArgs []string) []string {
+func ContainerRunArgs(cfg Config, workDir string, isTTY bool, userArgs []string) []string {
 	args := []string{"run", "--rm"}
 
-	if forceTTY || isTTY {
+	if isTTY {
 		args = append(args, "--interactive", "--tty")
 	}
 
@@ -123,28 +113,7 @@ func runRun(cobraCmd *cobra.Command, args []string) error {
 
 	tty := IsTTY(os.Stdin) && IsTTY(os.Stdout)
 	userArgs := stripDashDash(args)
-	containerArgs := ContainerRunArgs(cfg, currentDir, false, tty, userArgs)
-
-	return execContainer(cobraCmd.Context(), cfg.ContainerCmd, containerArgs)
-}
-
-func runRunit(cobraCmd *cobra.Command, args []string) error {
-	cfg, err := LoadConfig()
-	if err != nil {
-		return err
-	}
-
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("getting working directory: %w", err)
-	}
-
-	userArgs := stripDashDash(args)
-	if len(userArgs) == 0 {
-		userArgs = []string{"sh"}
-	}
-
-	containerArgs := ContainerRunArgs(cfg, currentDir, true, false, userArgs)
+	containerArgs := ContainerRunArgs(cfg, currentDir, tty, userArgs)
 
 	return execContainer(cobraCmd.Context(), cfg.ContainerCmd, containerArgs)
 }
