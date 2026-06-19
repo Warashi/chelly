@@ -74,10 +74,10 @@
         settings = {
           src = ../../.;
           hooks = {
-            # keep-sorted start block=yes
+            # keep-sorted start
+            actionlint.enable = true;
             golangci-lint.enable = true;
             gotest.enable = true;
-            actionlint.enable = true;
             treefmt.enable = true;
             # keep-sorted end
           };
@@ -87,17 +87,22 @@
       treefmt = {
         projectRootFile = "go.mod";
         programs = {
-          nixfmt.enable = true;
+          # keep-sorted start
           gofumpt.enable = true;
+          keep-sorted.enable = true;
+          nixfmt.enable = true;
+          # keep-sorted end
         };
       };
 
       devshells.default = {
         devshell = {
           packages = with pkgs; [
+            # keep-sorted start
             goEnv
             golangci-lint
             gomod2nix
+            # keep-sorted end
           ];
           startup = {
             pre-commit = {
