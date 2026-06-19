@@ -22,17 +22,121 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/viper"
 )
 
+const (
+	dirPerm             = 0o700
+	filePerm            = 0o600
+	keyAdditionalMounts = "additional_mounts"
+)
+
+// ErrUnknownConfigKey is returned when an unrecognized configuration key is used.
+var ErrUnknownConfigKey = errors.New("unknown config key")
+
 // Config holds the chelly configuration.
 type Config struct {
-	ContainerCmd      string
-	ConfigHome        string
-	Workdir           string
-	AdditionalMounts  []string
-	ContainerSetupCmd string
+	ContainerCmd      string   `toml:"container_cmd"`
+	ConfigHome        string   `toml:"config_home"`
+	Workdir           string   `toml:"workdir"`
+	AdditionalMounts  []string `toml:"additional_mounts"`
+	ContainerSetupCmd string   `toml:"container_setup_cmd"`
+}
+
+// validConfigKeys is the list of all valid configuration key names.
+var validConfigKeys = []string{
+	"container_cmd",
+	"config_home",
+	"workdir",
+	keyAdditionalMounts,
+	"container_setup_cmd",
+}
+
+// FormatConfig serializes cfg to a TOML string representing the effective configuration.
+func FormatConfig(cfg Config) (string, error) {
+	b, err := toml.Marshal(cfg)
+	if err != nil {
+		return "", fmt.Errorf("marshaling config: %w", err)
+	}
+
+	return string(b), nil
+}
+
+// GetConfigValue returns the effective value of the named key as a string.
+// For additional_mounts, values are comma-joined.
+func GetConfigValue(cfg Config, key string) (string, error) {
+	switch key {
+	case "container_cmd":
+		return cfg.ContainerCmd, nil
+	case "config_home":
+		return cfg.ConfigHome, nil
+	case "workdir":
+		return cfg.Workdir, nil
+	case keyAdditionalMounts:
+		return strings.Join(cfg.AdditionalMounts, ","), nil
+	case "container_setup_cmd":
+		return cfg.ContainerSetupCmd, nil
+	default:
+		return "", fmt.Errorf("%w %q: valid keys are %s", ErrUnknownConfigKey, key, strings.Join(validConfigKeys, ", "))
+	}
+}
+
+func applyConfigValue(data map[string]any, key, value string) {
+	if key == keyAdditionalMounts {
+		var mounts []string
+
+		for m := range strings.SplitSeq(value, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				mounts = append(mounts, m)
+			}
+		}
+
+		data[key] = mounts
+	} else {
+		data[key] = value
+	}
+}
+
+// SetConfigValue writes key=value into the TOML config file in configDir.
+// For additional_mounts, value is a comma-separated list of mount specs.
+// The config file and directory are created if they do not exist.
+func SetConfigValue(configDir, key, value string) error {
+	if !slices.Contains(validConfigKeys, key) {
+		return fmt.Errorf("%w %q: valid keys are %s", ErrUnknownConfigKey, key, strings.Join(validConfigKeys, ", "))
+	}
+
+	configFile := filepath.Join(configDir, "config.toml")
+
+	data := map[string]any{}
+
+	if content, err := os.ReadFile(configFile); err == nil { //nolint:gosec
+		if err := toml.Unmarshal(content, &data); err != nil {
+			return fmt.Errorf("parsing config file: %w", err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("reading config file: %w", err)
+	}
+
+	applyConfigValue(data, key, value)
+
+	content, err := toml.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+
+	if err := os.MkdirAll(configDir, dirPerm); err != nil {
+		return fmt.Errorf("creating config dir: %w", err)
+	}
+
+	if err := os.WriteFile(configFile, content, filePerm); err != nil {
+		return fmt.Errorf("writing config file: %w", err)
+	}
+
+	return nil
 }
 
 // DetectContainerCmd returns the first available container runtime found in PATH.

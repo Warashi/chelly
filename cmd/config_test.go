@@ -19,10 +19,235 @@ package cmd_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Warashi/chelly/cmd"
+	"github.com/pelletier/go-toml/v2"
 )
+
+func TestFormatConfig_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	original := cmd.Config{
+		ContainerCmd:      testContainerCmdPodman,
+		ConfigHome:        testConfigHome,
+		Workdir:           testWorkspace,
+		AdditionalMounts:  []string{testMountA},
+		ContainerSetupCmd: testSetupCmd,
+	}
+
+	out, err := cmd.FormatConfig(original)
+	if err != nil {
+		t.Fatalf("FormatConfig: %v", err)
+	}
+
+	var roundTripped cmd.Config
+	if err := toml.Unmarshal([]byte(out), &roundTripped); err != nil {
+		t.Fatalf("unmarshal round-trip: %v", err)
+	}
+
+	if roundTripped.ContainerCmd != original.ContainerCmd {
+		t.Errorf("ContainerCmd: got %q, want %q", roundTripped.ContainerCmd, original.ContainerCmd)
+	}
+
+	if roundTripped.ConfigHome != original.ConfigHome {
+		t.Errorf("ConfigHome: got %q, want %q", roundTripped.ConfigHome, original.ConfigHome)
+	}
+
+	if roundTripped.Workdir != original.Workdir {
+		t.Errorf("Workdir: got %q, want %q", roundTripped.Workdir, original.Workdir)
+	}
+
+	if len(roundTripped.AdditionalMounts) != len(original.AdditionalMounts) ||
+		roundTripped.AdditionalMounts[0] != original.AdditionalMounts[0] {
+		t.Errorf("AdditionalMounts: got %v, want %v", roundTripped.AdditionalMounts, original.AdditionalMounts)
+	}
+
+	if roundTripped.ContainerSetupCmd != original.ContainerSetupCmd {
+		t.Errorf("ContainerSetupCmd: got %q, want %q", roundTripped.ContainerSetupCmd, original.ContainerSetupCmd)
+	}
+}
+
+func TestGetConfigValue(t *testing.T) {
+	t.Parallel()
+
+	cfg := cmd.Config{
+		ContainerCmd:      testContainerCmdPodman,
+		ConfigHome:        testConfigHome,
+		Workdir:           testWorkspace,
+		AdditionalMounts:  []string{testMountA, testMountB},
+		ContainerSetupCmd: testSetupCmd,
+	}
+
+	cases := []struct {
+		key  string
+		want string
+	}{
+		{"container_cmd", testContainerCmdPodman},
+		{"config_home", testConfigHome},
+		{"workdir", testWorkspace},
+		{"additional_mounts", testMountA + "," + testMountB},
+		{"container_setup_cmd", testSetupCmd},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.key, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := cmd.GetConfigValue(cfg, testCase.key)
+			if err != nil {
+				t.Fatalf("GetConfigValue(%q): %v", testCase.key, err)
+			}
+
+			if got != testCase.want {
+				t.Errorf("got %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestGetConfigValue_UnknownKey(t *testing.T) {
+	t.Parallel()
+
+	_, err := cmd.GetConfigValue(cmd.Config{
+		ContainerCmd:      "",
+		ConfigHome:        "",
+		Workdir:           "",
+		AdditionalMounts:  nil,
+		ContainerSetupCmd: "",
+	}, "nonexistent_key")
+	if err == nil {
+		t.Fatal("expected error for unknown key, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "nonexistent_key") {
+		t.Errorf("error should mention the unknown key: %v", err)
+	}
+}
+
+func TestSetConfigValue(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	if err := cmd.SetConfigValue(dir, "container_cmd", testContainerCmdPodman); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	cfg, err := cmd.LoadConfigFrom(dir)
+	if err != nil {
+		t.Fatalf("LoadConfigFrom: %v", err)
+	}
+
+	if cfg.ContainerCmd != testContainerCmdPodman {
+		t.Errorf("ContainerCmd: got %q, want %q", cfg.ContainerCmd, testContainerCmdPodman)
+	}
+}
+
+func TestSetConfigValue_CreatesFileAndDir(t *testing.T) {
+	t.Parallel()
+
+	dir := filepath.Join(t.TempDir(), "newdir")
+
+	if err := cmd.SetConfigValue(dir, "workdir", testWorkspace); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "config.toml")); err != nil {
+		t.Errorf("config.toml not created: %v", err)
+	}
+
+	cfg, err := cmd.LoadConfigFrom(dir)
+	if err != nil {
+		t.Fatalf("LoadConfigFrom: %v", err)
+	}
+
+	if cfg.Workdir != testWorkspace {
+		t.Errorf("Workdir: got %q, want %q", cfg.Workdir, testWorkspace)
+	}
+}
+
+func TestSetConfigValue_PreservesExistingKeys(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeConfigFile(t, dir, `container_cmd = "docker"`)
+
+	if err := cmd.SetConfigValue(dir, "workdir", testWorkspace); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	cfg, err := cmd.LoadConfigFrom(dir)
+	if err != nil {
+		t.Fatalf("LoadConfigFrom: %v", err)
+	}
+
+	if cfg.ContainerCmd != testContainerCmdDocker {
+		t.Errorf("ContainerCmd: got %q, want %q", cfg.ContainerCmd, testContainerCmdDocker)
+	}
+
+	if cfg.Workdir != testWorkspace {
+		t.Errorf("Workdir: got %q, want %q", cfg.Workdir, testWorkspace)
+	}
+}
+
+func TestSetConfigValue_AdditionalMounts(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		value string
+		want  []string
+	}{
+		{"single", testMountA, []string{testMountA}},
+		{"multiple", testMountA + "," + testMountB, []string{testMountA, testMountB}},
+		{"with spaces", " " + testMountA + " , " + testMountB + " ", []string{testMountA, testMountB}},
+		{"empty", "", nil},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+
+			if err := cmd.SetConfigValue(dir, "additional_mounts", testCase.value); err != nil {
+				t.Fatalf("SetConfigValue: %v", err)
+			}
+
+			cfg, err := cmd.LoadConfigFrom(dir)
+			if err != nil {
+				t.Fatalf("LoadConfigFrom: %v", err)
+			}
+
+			if len(cfg.AdditionalMounts) != len(testCase.want) {
+				t.Errorf("AdditionalMounts len: got %d, want %d", len(cfg.AdditionalMounts), len(testCase.want))
+
+				return
+			}
+
+			for i, m := range testCase.want {
+				if cfg.AdditionalMounts[i] != m {
+					t.Errorf("AdditionalMounts[%d]: got %q, want %q", i, cfg.AdditionalMounts[i], m)
+				}
+			}
+		})
+	}
+}
+
+func TestSetConfigValue_UnknownKey(t *testing.T) {
+	t.Parallel()
+
+	err := cmd.SetConfigValue(t.TempDir(), "nonexistent_key", "value")
+	if err == nil {
+		t.Fatal("expected error for unknown key, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "nonexistent_key") {
+		t.Errorf("error should mention the unknown key: %v", err)
+	}
+}
 
 func writeConfigFile(t *testing.T, dir, content string) {
 	t.Helper()

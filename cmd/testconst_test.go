@@ -24,6 +24,8 @@ const (
 	testWorkDirMount       = "/current/dir:/current/dir"
 	testWorkspace          = "/workspace"
 	testSetupCmd           = "echo setup"
+	testMountA             = "/a:/a"
+	testMountB             = "/b:/b"
 
 	imageChelly     = "chelly:latest"
 	volumeHomeMount = "chelly-home:/home"
