@@ -17,7 +17,16 @@ buildGoApplication {
   pname = "chelly";
   version = "0.0.1";
   pwd = ./.;
-  src = ./.;
+  src = pkgs.lib.cleanSourceWith {
+    src = ./.;
+    filter =
+      path: type:
+      let
+        baseName = baseNameOf path;
+      in
+      type == "regular"
+      && (pkgs.lib.hasSuffix baseName ".go" || baseName == "go.mod" || baseName == "go.sum");
+  };
   nativeBuildInputs = [ ];
   subPackages = [ "." ];
 }
