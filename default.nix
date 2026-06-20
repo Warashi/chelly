@@ -17,16 +17,15 @@ buildGoApplication {
   pname = "chelly";
   version = "0.0.1";
   pwd = ./.;
-  src = pkgs.lib.cleanSourceWith {
-    src = ./.;
-    filter =
-      path: type:
-      let
-        baseName = baseNameOf path;
-      in
-      type == "regular"
-      && (pkgs.lib.hasSuffix ".go" baseName || baseName == "go.mod" || baseName == "go.sum");
+  src = pkgs.lib.fileset.toSource {
+    root = ./.;
+    fileset = pkgs.lib.fileset.fileFilter (
+      file:
+      (file.hasExt "go" && !pkgs.lib.hasSuffix "_test.go" file.name)
+      || builtins.elem file.name [
+        "go.mod"
+        "go.sum"
+      ]
+    ) ./.;
   };
-  nativeBuildInputs = [ ];
-  subPackages = [ "." ];
 }
