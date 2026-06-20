@@ -99,11 +99,13 @@
         devshell = {
           packages = with pkgs; [
             # keep-sorted start
-            goEnv
             golangci-lint
             gomod2nix
             just
             # keep-sorted end
+          ];
+          packagesFrom = [
+            goEnv
           ];
           startup = {
             pre-commit = {
