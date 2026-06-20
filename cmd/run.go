@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -65,11 +66,12 @@ func ContainerRunArgs(cfg Config, workDir string, isTTY bool, userArgs []string)
 	args = append(args, "--workdir", cfg.Workdir)
 	args = append(args, "chelly:latest")
 
-	if cfg.ContainerSetupCmd != "" {
-		if len(userArgs) == 0 {
-			args = append(args, "sh", "-lc", cfg.ContainerSetupCmd)
-		} else {
-			args = append(args, "sh", "-lc", cfg.ContainerSetupCmd+`; exec "$@"`, "sh")
+	if len(cfg.ContainerSetupCmds) > 0 {
+		script := buildSetupScript(cfg.ContainerSetupCmds, userArgs)
+		args = append(args, "sh", "-lc", script)
+
+		if len(userArgs) > 0 {
+			args = append(args, "sh")
 			args = append(args, userArgs...)
 		}
 	} else {
@@ -77,6 +79,34 @@ func ContainerRunArgs(cfg Config, workDir string, isTTY bool, userArgs []string)
 	}
 
 	return args
+}
+
+// buildSetupScript generates a shell script that runs setup commands with stdout
+// redirected to stderr. Multiple commands run in parallel; the main user command
+// is exec'd only after all setup commands succeed.
+func buildSetupScript(cmds []string, userArgs []string) string {
+	execSuffix := ""
+	if len(userArgs) > 0 {
+		execSuffix = ` && exec "$@"`
+	}
+
+	if len(cmds) == 1 {
+		return cmds[0] + " >&2" + execSuffix
+	}
+
+	var parts []string
+
+	for i, c := range cmds {
+		parts = append(parts, fmt.Sprintf("%s >&2 & p%d=$!", c, i))
+	}
+
+	var waits []string
+
+	for i := range cmds {
+		waits = append(waits, fmt.Sprintf("wait $p%d", i))
+	}
+
+	return strings.Join(parts, "; ") + "; " + strings.Join(waits, " && ") + execSuffix
 }
 
 func stripDashDash(args []string) []string {
