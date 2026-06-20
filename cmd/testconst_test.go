@@ -24,6 +24,7 @@ const (
 	testWorkDirMount       = "/current/dir:/current/dir"
 	testWorkspace          = "/workspace"
 	testSetupCmd           = "echo setup"
+	testSetupCmd2          = "echo setup2"
 	testMountA             = "/a:/a"
 	testMountB             = "/b:/b"
 

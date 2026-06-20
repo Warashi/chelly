@@ -30,11 +30,11 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 	t.Parallel()
 
 	original := cmd.Config{
-		ContainerCmd:      testContainerCmdPodman,
-		ConfigHome:        testConfigHome,
-		Workdir:           testWorkspace,
-		AdditionalMounts:  []string{testMountA},
-		ContainerSetupCmd: testSetupCmd,
+		ContainerCmd:       testContainerCmdPodman,
+		ConfigHome:         testConfigHome,
+		Workdir:            testWorkspace,
+		AdditionalMounts:   []string{testMountA},
+		ContainerSetupCmds: []string{testSetupCmd},
 	}
 
 	out, err := cmd.FormatConfig(original)
@@ -64,8 +64,9 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 		t.Errorf("AdditionalMounts: got %v, want %v", roundTripped.AdditionalMounts, original.AdditionalMounts)
 	}
 
-	if roundTripped.ContainerSetupCmd != original.ContainerSetupCmd {
-		t.Errorf("ContainerSetupCmd: got %q, want %q", roundTripped.ContainerSetupCmd, original.ContainerSetupCmd)
+	if len(roundTripped.ContainerSetupCmds) != len(original.ContainerSetupCmds) ||
+		roundTripped.ContainerSetupCmds[0] != original.ContainerSetupCmds[0] {
+		t.Errorf("ContainerSetupCmds: got %v, want %v", roundTripped.ContainerSetupCmds, original.ContainerSetupCmds)
 	}
 }
 
@@ -73,11 +74,11 @@ func TestGetConfigValue(t *testing.T) {
 	t.Parallel()
 
 	cfg := cmd.Config{
-		ContainerCmd:      testContainerCmdPodman,
-		ConfigHome:        testConfigHome,
-		Workdir:           testWorkspace,
-		AdditionalMounts:  []string{testMountA, testMountB},
-		ContainerSetupCmd: testSetupCmd,
+		ContainerCmd:       testContainerCmdPodman,
+		ConfigHome:         testConfigHome,
+		Workdir:            testWorkspace,
+		AdditionalMounts:   []string{testMountA, testMountB},
+		ContainerSetupCmds: []string{testSetupCmd, testSetupCmd2},
 	}
 
 	cases := []struct {
@@ -88,7 +89,7 @@ func TestGetConfigValue(t *testing.T) {
 		{"config_home", testConfigHome},
 		{"workdir", testWorkspace},
 		{"additional_mounts", testMountA + "," + testMountB},
-		{"container_setup_cmd", testSetupCmd},
+		{"container_setup_cmds", testSetupCmd + "," + testSetupCmd2},
 	}
 
 	for _, testCase := range cases {
@@ -111,11 +112,11 @@ func TestGetConfigValue_UnknownKey(t *testing.T) {
 	t.Parallel()
 
 	_, err := cmd.GetConfigValue(cmd.Config{
-		ContainerCmd:      "",
-		ConfigHome:        "",
-		Workdir:           "",
-		AdditionalMounts:  nil,
-		ContainerSetupCmd: "",
+		ContainerCmd:       "",
+		ConfigHome:         "",
+		Workdir:            "",
+		AdditionalMounts:   nil,
+		ContainerSetupCmds: nil,
 	}, "nonexistent_key")
 	if err == nil {
 		t.Fatal("expected error for unknown key, got nil")
@@ -281,8 +282,8 @@ func TestLoadConfigFrom_Defaults(t *testing.T) {
 		t.Errorf("AdditionalMounts: got %v, want empty", cfg.AdditionalMounts)
 	}
 
-	if cfg.ContainerSetupCmd != "" {
-		t.Errorf("ContainerSetupCmd: got %q, want empty", cfg.ContainerSetupCmd)
+	if len(cfg.ContainerSetupCmds) != 0 {
+		t.Errorf("ContainerSetupCmds: got %v, want empty", cfg.ContainerSetupCmds)
 	}
 
 	if cfg.Workdir == "" {
@@ -299,7 +300,7 @@ container_cmd = "podman"
 config_home = "/custom/context"
 workdir = "/workspace"
 additional_mounts = ["/host:/container"]
-container_setup_cmd = "echo setup"
+container_setup_cmds = ["echo setup"]
 `)
 
 	cfg, err := cmd.LoadConfigFrom(dir)
@@ -323,8 +324,8 @@ container_setup_cmd = "echo setup"
 		t.Errorf("AdditionalMounts: got %v, want [/host:/container]", cfg.AdditionalMounts)
 	}
 
-	if cfg.ContainerSetupCmd != testSetupCmd {
-		t.Errorf("ContainerSetupCmd: got %q, want %q", cfg.ContainerSetupCmd, testSetupCmd)
+	if len(cfg.ContainerSetupCmds) != 1 || cfg.ContainerSetupCmds[0] != testSetupCmd {
+		t.Errorf("ContainerSetupCmds: got %v, want [%q]", cfg.ContainerSetupCmds, testSetupCmd)
 	}
 }
 
@@ -358,14 +359,14 @@ container_cmd = "docker"
 config_home = "/config-file-context"
 workdir = "/config-file-workdir"
 additional_mounts = ["/config-file:/config-file"]
-container_setup_cmd = "echo config-file"
+container_setup_cmds = ["echo config-file"]
 `)
 
 	t.Setenv("CHELLY_CONTAINER_CMD", testContainerCmdPodman)
 	t.Setenv("CHELLY_CONFIG_HOME", "/env-context")
 	t.Setenv("CHELLY_WORKDIR", "/env-workdir")
 	t.Setenv("CHELLY_ADDITIONAL_MOUNTS", "/env-host:/env-container")
-	t.Setenv("CHELLY_CONTAINER_SETUP_CMD", "echo env")
+	t.Setenv("CHELLY_CONTAINER_SETUP_CMDS", "echo-env")
 
 	cfg, err := cmd.LoadConfigFrom(dir)
 	if err != nil {
@@ -388,7 +389,7 @@ container_setup_cmd = "echo config-file"
 		t.Errorf("AdditionalMounts: got %v, want [/env-host:/env-container]", cfg.AdditionalMounts)
 	}
 
-	if cfg.ContainerSetupCmd != "echo env" {
-		t.Errorf("ContainerSetupCmd: got %q, want %q", cfg.ContainerSetupCmd, "echo env")
+	if len(cfg.ContainerSetupCmds) != 1 || cfg.ContainerSetupCmds[0] != "echo-env" {
+		t.Errorf("ContainerSetupCmds: got %v, want [\"echo-env\"]", cfg.ContainerSetupCmds)
 	}
 }

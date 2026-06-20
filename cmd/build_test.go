@@ -25,11 +25,11 @@ import (
 
 func baseConfig() cmd.Config {
 	return cmd.Config{
-		ContainerCmd:      testContainerCmdDocker,
-		ConfigHome:        testConfigHome,
-		Workdir:           testWorkspace,
-		AdditionalMounts:  nil,
-		ContainerSetupCmd: "",
+		ContainerCmd:       testContainerCmdDocker,
+		ConfigHome:         testConfigHome,
+		Workdir:            testWorkspace,
+		AdditionalMounts:   nil,
+		ContainerSetupCmds: nil,
 	}
 }
 

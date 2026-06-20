@@ -25,11 +25,11 @@ import (
 
 func runConfig() cmd.Config {
 	return cmd.Config{
-		ContainerCmd:      testContainerCmdDocker,
-		ConfigHome:        testConfigHome,
-		Workdir:           testWorkDir,
-		AdditionalMounts:  nil,
-		ContainerSetupCmd: "",
+		ContainerCmd:       testContainerCmdDocker,
+		ConfigHome:         testConfigHome,
+		Workdir:            testWorkDir,
+		AdditionalMounts:   nil,
+		ContainerSetupCmds: nil,
 	}
 }
 
@@ -99,7 +99,7 @@ func TestContainerRunArgs_SetupCmdWithCommand(t *testing.T) {
 	t.Parallel()
 
 	cfg := runConfig()
-	cfg.ContainerSetupCmd = testSetupCmd
+	cfg.ContainerSetupCmds = []string{testSetupCmd}
 
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
 	want := []string{
@@ -108,7 +108,7 @@ func TestContainerRunArgs_SetupCmdWithCommand(t *testing.T) {
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		imageChelly,
-		shellSh, shellFlagLC, `echo setup; exec "$@"`, shellSh,
+		shellSh, shellFlagLC, `echo setup >&2 && exec "$@"`, shellSh,
 		cmdEcho, cmdHello,
 	}
 
@@ -121,7 +121,7 @@ func TestContainerRunArgs_SetupCmdWithoutCommand(t *testing.T) {
 	t.Parallel()
 
 	cfg := runConfig()
-	cfg.ContainerSetupCmd = testSetupCmd
+	cfg.ContainerSetupCmds = []string{testSetupCmd}
 
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{})
 	want := []string{
@@ -130,7 +130,50 @@ func TestContainerRunArgs_SetupCmdWithoutCommand(t *testing.T) {
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		imageChelly,
-		shellSh, shellFlagLC, testSetupCmd,
+		shellSh, shellFlagLC, "echo setup >&2",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ContainerRunArgs: got %v, want %v", got, want)
+	}
+}
+
+func TestContainerRunArgs_MultipleSetupCmdsWithCommand(t *testing.T) {
+	t.Parallel()
+
+	cfg := runConfig()
+	cfg.ContainerSetupCmds = []string{testSetupCmd, testSetupCmd2}
+
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
+	want := []string{
+		cmdRun, flagRM,
+		flagVolume, volumeHomeMount,
+		flagVolume, testWorkDirMount,
+		flagWorkdir, testWorkDir,
+		imageChelly,
+		shellSh, shellFlagLC, `echo setup >&2 & p0=$!; echo setup2 >&2 & p1=$!; wait $p0 && wait $p1 && exec "$@"`, shellSh,
+		cmdEcho, cmdHello,
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ContainerRunArgs: got %v, want %v", got, want)
+	}
+}
+
+func TestContainerRunArgs_MultipleSetupCmdsWithoutCommand(t *testing.T) {
+	t.Parallel()
+
+	cfg := runConfig()
+	cfg.ContainerSetupCmds = []string{testSetupCmd, testSetupCmd2}
+
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{})
+	want := []string{
+		cmdRun, flagRM,
+		flagVolume, volumeHomeMount,
+		flagVolume, testWorkDirMount,
+		flagWorkdir, testWorkDir,
+		imageChelly,
+		shellSh, shellFlagLC, "echo setup >&2 & p0=$!; echo setup2 >&2 & p1=$!; wait $p0 && wait $p1",
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -163,11 +206,11 @@ func TestContainerRunArgs_AllOptions(t *testing.T) {
 	t.Parallel()
 
 	cfg := cmd.Config{
-		ContainerCmd:      testContainerCmdPodman,
-		ConfigHome:        testConfigHome,
-		Workdir:           testWorkspace,
-		AdditionalMounts:  []string{"/home/user/.ssh:/home/user/.ssh"},
-		ContainerSetupCmd: "source /etc/profile",
+		ContainerCmd:       testContainerCmdPodman,
+		ConfigHome:         testConfigHome,
+		Workdir:            testWorkspace,
+		AdditionalMounts:   []string{"/home/user/.ssh:/home/user/.ssh"},
+		ContainerSetupCmds: []string{"source /etc/profile"},
 	}
 
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdBash, "-c", "echo hi"})
@@ -178,7 +221,7 @@ func TestContainerRunArgs_AllOptions(t *testing.T) {
 		flagVolume, "/home/user/.ssh:/home/user/.ssh",
 		flagWorkdir, testWorkspace,
 		imageChelly,
-		shellSh, shellFlagLC, `source /etc/profile; exec "$@"`, shellSh,
+		shellSh, shellFlagLC, `source /etc/profile >&2 && exec "$@"`, shellSh,
 		cmdBash, "-c", "echo hi",
 	}
 
