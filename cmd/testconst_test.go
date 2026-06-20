@@ -29,7 +29,6 @@ const (
 	testMountB             = "/b:/b"
 
 	imageChelly     = "chelly:latest"
-	volumeHomeMount = "chelly-home:/home"
 	flagRM          = "--rm"
 	flagVolume      = "--volume"
 	flagWorkdir     = "--workdir"

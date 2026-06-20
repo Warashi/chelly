@@ -40,7 +40,6 @@ func TestContainerRunArgs_Default(t *testing.T) {
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
 	want := []string{
 		cmdRun, flagRM,
-		flagVolume, volumeHomeMount,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		imageChelly,
@@ -60,7 +59,6 @@ func TestContainerRunArgs_WithTTY(t *testing.T) {
 	want := []string{
 		cmdRun, flagRM,
 		flagInteractive, flagTTY,
-		flagVolume, volumeHomeMount,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		imageChelly,
@@ -81,7 +79,6 @@ func TestContainerRunArgs_AdditionalMounts(t *testing.T) {
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
 		cmdRun, flagRM,
-		flagVolume, volumeHomeMount,
 		flagVolume, testWorkDirMount,
 		flagVolume, "/host1:/cont1",
 		flagVolume, "/host2:/cont2",
@@ -104,7 +101,6 @@ func TestContainerRunArgs_SetupCmdWithCommand(t *testing.T) {
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
 	want := []string{
 		cmdRun, flagRM,
-		flagVolume, volumeHomeMount,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		imageChelly,
@@ -126,7 +122,6 @@ func TestContainerRunArgs_SetupCmdWithoutCommand(t *testing.T) {
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{})
 	want := []string{
 		cmdRun, flagRM,
-		flagVolume, volumeHomeMount,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		imageChelly,
@@ -147,7 +142,6 @@ func TestContainerRunArgs_MultipleSetupCmdsWithCommand(t *testing.T) {
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
 	want := []string{
 		cmdRun, flagRM,
-		flagVolume, volumeHomeMount,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		imageChelly,
@@ -169,7 +163,6 @@ func TestContainerRunArgs_MultipleSetupCmdsWithoutCommand(t *testing.T) {
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{})
 	want := []string{
 		cmdRun, flagRM,
-		flagVolume, volumeHomeMount,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		imageChelly,
@@ -190,7 +183,6 @@ func TestContainerRunArgs_CustomWorkdir(t *testing.T) {
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
 		cmdRun, flagRM,
-		flagVolume, volumeHomeMount,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkspace,
 		imageChelly,
@@ -216,7 +208,6 @@ func TestContainerRunArgs_AllOptions(t *testing.T) {
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdBash, "-c", "echo hi"})
 	want := []string{
 		cmdRun, flagRM,
-		flagVolume, volumeHomeMount,
 		flagVolume, testWorkDirMount,
 		flagVolume, "/home/user/.ssh:/home/user/.ssh",
 		flagWorkdir, testWorkspace,

@@ -56,7 +56,6 @@ func ContainerRunArgs(cfg Config, workDir string, isTTY bool, userArgs []string)
 		args = append(args, "--interactive", "--tty")
 	}
 
-	args = append(args, "--volume", "chelly-home:/home")
 	args = append(args, "--volume", workDir+":"+workDir)
 
 	for _, mount := range cfg.AdditionalMounts {
