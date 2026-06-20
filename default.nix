@@ -25,7 +25,7 @@ buildGoApplication {
         baseName = baseNameOf path;
       in
       type == "regular"
-      && (pkgs.lib.hasSuffix baseName ".go" || baseName == "go.mod" || baseName == "go.sum");
+      && (pkgs.lib.hasSuffix ".go" baseName || baseName == "go.mod" || baseName == "go.sum");
   };
   nativeBuildInputs = [ ];
   subPackages = [ "." ];
