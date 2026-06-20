@@ -32,8 +32,8 @@ Print all current effective configuration values in TOML format.
 
 Print the effective value of a single configuration key.
 
-- `key`: one of `container_cmd`, `config_home`, `workdir`, `additional_mounts`, `container_setup_cmd`
-- For `additional_mounts`, prints values as a comma-separated string
+- `key`: one of `container_cmd`, `config_home`, `workdir`, `additional_mounts`, `container_setup_cmds`
+- For `additional_mounts` and `container_setup_cmds`, prints values as a comma-separated string
 
 ### `chelly config set <key> <value>`
 
@@ -49,13 +49,13 @@ Config file: `$XDG_CONFIG_HOME/chelly/config.toml` (default: `$HOME/.config/chel
 
 Environment variables override config file values.
 
-| TOML key              | Environment variable          | Default                      | Description                                          |
-|-----------------------|-------------------------------|------------------------------|------------------------------------------------------|
-| `container_cmd`       | `CHELLY_CONTAINER_CMD`        | auto-detect                  | Container runtime command (`container`/`podman`/`docker`) |
-| `config_home`         | `CHELLY_CONFIG_HOME`          | `$XDG_CONFIG_HOME/chelly`    | Build context directory                              |
-| `workdir`             | `CHELLY_WORKDIR`              | current directory            | Working directory inside the container               |
-| `additional_mounts`   | `CHELLY_ADDITIONAL_MOUNTS`    | (empty)                      | Additional volume mounts (`host:container` format, comma-separated for env var) |
-| `container_setup_cmd` | `CHELLY_CONTAINER_SETUP_CMD`  | (empty)                      | Shell command to run inside the container before the main command |
+| TOML key               | Environment variable           | Default                      | Description                                          |
+|------------------------|--------------------------------|------------------------------|------------------------------------------------------|
+| `container_cmd`        | `CHELLY_CONTAINER_CMD`         | auto-detect                  | Container runtime command (`container`/`podman`/`docker`) |
+| `config_home`          | `CHELLY_CONFIG_HOME`           | `$XDG_CONFIG_HOME/chelly`    | Build context directory                              |
+| `workdir`              | `CHELLY_WORKDIR`               | current directory            | Working directory inside the container               |
+| `additional_mounts`    | `CHELLY_ADDITIONAL_MOUNTS`     | (empty)                      | Additional volume mounts (`host:container` format, comma-separated for env var) |
+| `container_setup_cmds` | `CHELLY_CONTAINER_SETUP_CMDS`  | (empty)                      | Shell commands to run inside the container before the main command; multiple commands run in parallel with stdout redirected to stderr |
 
 ### Example config file
 
@@ -63,5 +63,5 @@ Environment variables override config file values.
 container_cmd = "podman"
 workdir = "/workspace"
 additional_mounts = ["/home/user/.ssh:/home/user/.ssh"]
-container_setup_cmd = "source /etc/profile"
+container_setup_cmds = ["source /etc/profile", "mise activate"]
 ```
