@@ -30,9 +30,10 @@ import (
 )
 
 const (
-	dirPerm             = 0o700
-	filePerm            = 0o600
-	keyAdditionalMounts = "additional_mounts"
+	dirPerm               = 0o700
+	filePerm              = 0o600
+	keyAdditionalMounts   = "additional_mounts"
+	keyContainerSetupCmds = "container_setup_cmds"
 )
 
 // ErrUnknownConfigKey is returned when an unrecognized configuration key is used.
@@ -40,11 +41,11 @@ var ErrUnknownConfigKey = errors.New("unknown config key")
 
 // Config holds the chelly configuration.
 type Config struct {
-	ContainerCmd      string   `toml:"container_cmd"`
-	ConfigHome        string   `toml:"config_home"`
-	Workdir           string   `toml:"workdir"`
-	AdditionalMounts  []string `toml:"additional_mounts"`
-	ContainerSetupCmd string   `toml:"container_setup_cmd"`
+	ContainerCmd       string   `toml:"container_cmd"`
+	ConfigHome         string   `toml:"config_home"`
+	Workdir            string   `toml:"workdir"`
+	AdditionalMounts   []string `toml:"additional_mounts"`
+	ContainerSetupCmds []string `toml:"container_setup_cmds"`
 }
 
 // validConfigKeys is the list of all valid configuration key names.
@@ -53,7 +54,7 @@ var validConfigKeys = []string{
 	"config_home",
 	"workdir",
 	keyAdditionalMounts,
-	"container_setup_cmd",
+	keyContainerSetupCmds,
 }
 
 // FormatConfig serializes cfg to a TOML string representing the effective configuration.
@@ -67,7 +68,7 @@ func FormatConfig(cfg Config) (string, error) {
 }
 
 // GetConfigValue returns the effective value of the named key as a string.
-// For additional_mounts, values are comma-joined.
+// For additional_mounts and container_setup_cmds, values are comma-joined.
 func GetConfigValue(cfg Config, key string) (string, error) {
 	switch key {
 	case "container_cmd":
@@ -78,25 +79,26 @@ func GetConfigValue(cfg Config, key string) (string, error) {
 		return cfg.Workdir, nil
 	case keyAdditionalMounts:
 		return strings.Join(cfg.AdditionalMounts, ","), nil
-	case "container_setup_cmd":
-		return cfg.ContainerSetupCmd, nil
+	case keyContainerSetupCmds:
+		return strings.Join(cfg.ContainerSetupCmds, ","), nil
 	default:
 		return "", fmt.Errorf("%w %q: valid keys are %s", ErrUnknownConfigKey, key, strings.Join(validConfigKeys, ", "))
 	}
 }
 
 func applyConfigValue(data map[string]any, key, value string) {
-	if key == keyAdditionalMounts {
-		var mounts []string
+	switch key {
+	case keyAdditionalMounts, keyContainerSetupCmds:
+		var items []string
 
-		for m := range strings.SplitSeq(value, ",") {
-			if m = strings.TrimSpace(m); m != "" {
-				mounts = append(mounts, m)
+		for item := range strings.SplitSeq(value, ",") {
+			if item = strings.TrimSpace(item); item != "" {
+				items = append(items, item)
 			}
 		}
 
-		data[key] = mounts
-	} else {
+		data[key] = items
+	default:
 		data[key] = value
 	}
 }
@@ -187,7 +189,7 @@ func LoadConfigFrom(configDir string) (Config, error) {
 	viperInst.SetDefault("container_cmd", DetectContainerCmd())
 	viperInst.SetDefault("config_home", configDir)
 	viperInst.SetDefault("additional_mounts", []string{})
-	viperInst.SetDefault("container_setup_cmd", "")
+	viperInst.SetDefault("container_setup_cmds", []string{})
 
 	if err := viperInst.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
@@ -207,10 +209,10 @@ func LoadConfigFrom(configDir string) (Config, error) {
 	}
 
 	return Config{
-		ContainerCmd:      viperInst.GetString("container_cmd"),
-		ConfigHome:        viperInst.GetString("config_home"),
-		Workdir:           workdir,
-		AdditionalMounts:  viperInst.GetStringSlice("additional_mounts"),
-		ContainerSetupCmd: viperInst.GetString("container_setup_cmd"),
+		ContainerCmd:       viperInst.GetString("container_cmd"),
+		ConfigHome:         viperInst.GetString("config_home"),
+		Workdir:            workdir,
+		AdditionalMounts:   viperInst.GetStringSlice("additional_mounts"),
+		ContainerSetupCmds: viperInst.GetStringSlice("container_setup_cmds"),
 	}, nil
 }
