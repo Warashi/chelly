@@ -23,6 +23,7 @@
 - git commit の粒度を考慮して作業の順序や粒度を決める。
 - 実装を追加・変更・削除したら、関連テストも同じ粒度で更新する。
 - 作業は小さな単位で進め、各単位ごとに lint と test を通す。
+- 単位ごとの作業が終わったら `git commit` する。
 - commit message は `conventional commits` に従う。
 
 ## 参照先
