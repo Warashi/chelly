@@ -101,7 +101,6 @@
             # keep-sorted start
             golangci-lint
             gomod2nix
-            just
             # keep-sorted end
           ];
           packagesFrom = [
