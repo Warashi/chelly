@@ -31,7 +31,7 @@ func newRunCommand() *cobra.Command {
 		Short:              "Run a command in the chelly container",
 		Long:               `Run a command inside the chelly container, mounting the current directory.`,
 		DisableFlagParsing: true,
-		RunE: func(cobraCmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cfg, err := config.LoadConfig()
 			if err != nil {
 				return fmt.Errorf("loading config: %w", err)
@@ -52,7 +52,7 @@ func newRunCommand() *cobra.Command {
 				PodmanOptions:      container.PodmanOptions{Run: cfg.PodmanOptions.Run},
 			}, currentDir, tty, userArgs)
 
-			return container.Exec(cobraCmd.Context(), cfg.ContainerCmd, containerArgs)
+			return container.Exec(cfg.ContainerCmd, containerArgs)
 		},
 	}
 }

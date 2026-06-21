@@ -35,6 +35,10 @@ Arg-building logic is separated from execution:
 
 This makes unit testing straightforward: tests call these functions directly and assert the returned slices without any subprocess mocking.
 
+## Execution semantics
+
+`build` runs the container runtime as a normal child process. `run` replaces the `chelly` process with the container runtime so runtime behavior is delegated directly to the caller-facing process.
+
 ## Container command detection
 
 `DetectContainerCmd()` probes `PATH` for `container`, `podman`, `docker` in that order and returns the first found. It is used as the default for `container_cmd` when not configured.

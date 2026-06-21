@@ -24,6 +24,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -144,8 +146,20 @@ func StripDashDash(args []string) []string {
 	return args
 }
 
-// Exec runs the configured container command with connected standard streams.
-func Exec(ctx context.Context, containerCmd string, args []string) error {
+type execDeps struct {
+	lookPath func(string) (string, error)
+	execve   func(string, []string, []string) error
+	environ  func() []string
+}
+
+var defaultExecDeps = execDeps{
+	lookPath: exec.LookPath,
+	execve:   unix.Exec,
+	environ:  os.Environ,
+}
+
+// Run runs the configured container command as a child process with connected standard streams.
+func Run(ctx context.Context, containerCmd string, args []string) error {
 	cmd := exec.CommandContext(ctx, containerCmd, args...) //nolint:gosec
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -153,6 +167,25 @@ func Exec(ctx context.Context, containerCmd string, args []string) error {
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("running container: %w", err)
+	}
+
+	return nil
+}
+
+// Exec replaces the current process with the configured container command.
+func Exec(containerCmd string, args []string) error {
+	return execWith(defaultExecDeps, containerCmd, args)
+}
+
+func execWith(deps execDeps, containerCmd string, args []string) error {
+	path, err := deps.lookPath(containerCmd)
+	if err != nil {
+		return fmt.Errorf("looking up container command: %w", err)
+	}
+
+	argv := append([]string{containerCmd}, args...)
+	if err := deps.execve(path, argv, deps.environ()); err != nil {
+		return fmt.Errorf("replacing process with container: %w", err)
 	}
 
 	return nil

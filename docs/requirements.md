@@ -21,6 +21,7 @@ Run a command inside the chelly container.
 - Mounts the current directory at the same path inside the container
 - Sets the container workdir to the current directory (configurable)
 - Detects stdin/stdout TTY and adds `--interactive --tty` automatically
+- Replaces the `chelly` process with the container runtime, so the runtime's exit status, signal handling, TTY behavior, and process ownership pass through to the caller
 
 ### `chelly config list`
 

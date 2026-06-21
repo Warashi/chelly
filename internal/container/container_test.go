@@ -381,16 +381,16 @@ func TestIsTTY_RegularFileFalse(t *testing.T) {
 	}
 }
 
-func TestExec_ReturnsWrappedError(t *testing.T) {
+func TestRun_ReturnsWrappedError(t *testing.T) {
 	t.Parallel()
 
-	err := container.Exec(context.Background(), "false", nil)
+	err := container.Run(context.Background(), "false", nil)
 	if err == nil {
-		t.Fatal("Exec returned nil")
+		t.Fatal("Run returned nil")
 	}
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
-		t.Fatalf("Exec error = %v, want wrapped *exec.ExitError", err)
+		t.Fatalf("Run error = %v, want wrapped *exec.ExitError", err)
 	}
 }

@@ -39,7 +39,7 @@ func newBuildCommand() *cobra.Command {
 
 			args := container.BuildArgs(container.BuildConfig{ConfigHome: cfg.ConfigHome}, noCache)
 
-			return container.Exec(cobraCmd.Context(), cfg.ContainerCmd, args)
+			return container.Run(cobraCmd.Context(), cfg.ContainerCmd, args)
 		},
 	}
 
