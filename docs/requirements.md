@@ -63,7 +63,7 @@ Environment variables override config file values.
 ```toml
 container_cmd = "podman"
 workdir = "/workspace"
-additional_mounts = ["/home/user/.ssh:/home/user/.ssh"]
+additional_mounts = ["/home/user/.cache:/home/user/.cache"]
 container_setup_cmds = ["source /etc/profile", "mise activate"]
 
 [podman_options]
