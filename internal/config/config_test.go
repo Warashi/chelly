@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cmd_test
+package config_test
 
 import (
 	"os"
@@ -23,8 +23,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Warashi/chelly/cmd"
+	"github.com/Warashi/chelly/internal/config"
 	"github.com/pelletier/go-toml/v2"
+)
+
+const (
+	testContainerCmdDocker = "docker"
+	testContainerCmdPodman = "podman"
+	testConfigHome         = "/config/chelly"
+	testWorkspace          = "/workspace"
+	testSetupCmd           = "echo setup"
+	testSetupCmd2          = "echo setup2"
+	testMountA             = "/a:/a"
+	testMountB             = "/b:/b"
+	testPodmanRunOption    = "--userns=keep-id"
+	testPodmanRunOption2   = "--security-opt=label=disable"
 )
 
 func assertStringSlice(t *testing.T, name string, got, want []string) {
@@ -38,21 +51,21 @@ func assertStringSlice(t *testing.T, name string, got, want []string) {
 func TestFormatConfig_RoundTrip(t *testing.T) {
 	t.Parallel()
 
-	original := cmd.Config{
+	original := config.Config{
 		ContainerCmd:       testContainerCmdPodman,
 		ConfigHome:         testConfigHome,
 		Workdir:            testWorkspace,
 		AdditionalMounts:   []string{testMountA},
 		ContainerSetupCmds: []string{testSetupCmd},
-		PodmanOptions:      cmd.PodmanOptions{Run: []string{testPodmanRunOption}},
+		PodmanOptions:      config.PodmanOptions{Run: []string{testPodmanRunOption}},
 	}
 
-	out, err := cmd.FormatConfig(original)
+	out, err := config.FormatConfig(original)
 	if err != nil {
 		t.Fatalf("FormatConfig: %v", err)
 	}
 
-	var roundTripped cmd.Config
+	var roundTripped config.Config
 	if err := toml.Unmarshal([]byte(out), &roundTripped); err != nil {
 		t.Fatalf("unmarshal round-trip: %v", err)
 	}
@@ -77,13 +90,13 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 func TestGetConfigValue(t *testing.T) {
 	t.Parallel()
 
-	cfg := cmd.Config{
+	cfg := config.Config{
 		ContainerCmd:       testContainerCmdPodman,
 		ConfigHome:         testConfigHome,
 		Workdir:            testWorkspace,
 		AdditionalMounts:   []string{testMountA, testMountB},
 		ContainerSetupCmds: []string{testSetupCmd, testSetupCmd2},
-		PodmanOptions:      cmd.PodmanOptions{Run: []string{testPodmanRunOption, testPodmanRunOption2}},
+		PodmanOptions:      config.PodmanOptions{Run: []string{testPodmanRunOption, testPodmanRunOption2}},
 	}
 
 	cases := []struct {
@@ -102,7 +115,7 @@ func TestGetConfigValue(t *testing.T) {
 		t.Run(testCase.key, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := cmd.GetConfigValue(cfg, testCase.key)
+			got, err := config.GetConfigValue(cfg, testCase.key)
 			if err != nil {
 				t.Fatalf("GetConfigValue(%q): %v", testCase.key, err)
 			}
@@ -117,13 +130,13 @@ func TestGetConfigValue(t *testing.T) {
 func TestGetConfigValue_UnknownKey(t *testing.T) {
 	t.Parallel()
 
-	_, err := cmd.GetConfigValue(cmd.Config{
+	_, err := config.GetConfigValue(config.Config{
 		ContainerCmd:       "",
 		ConfigHome:         "",
 		Workdir:            "",
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
-		PodmanOptions:      cmd.PodmanOptions{Run: nil},
+		PodmanOptions:      config.PodmanOptions{Run: nil},
 	}, "nonexistent_key")
 	if err == nil {
 		t.Fatal("expected error for unknown key, got nil")
@@ -139,11 +152,11 @@ func TestSetConfigValue(t *testing.T) {
 
 	dir := t.TempDir()
 
-	if err := cmd.SetConfigValue(dir, "container_cmd", testContainerCmdPodman); err != nil {
+	if err := config.SetConfigValue(dir, "container_cmd", testContainerCmdPodman); err != nil {
 		t.Fatalf("SetConfigValue: %v", err)
 	}
 
-	cfg, err := cmd.LoadConfigFrom(dir)
+	cfg, err := config.LoadConfigFrom(dir)
 	if err != nil {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}
@@ -158,7 +171,7 @@ func TestSetConfigValue_CreatesFileAndDir(t *testing.T) {
 
 	dir := filepath.Join(t.TempDir(), "newdir")
 
-	if err := cmd.SetConfigValue(dir, "workdir", testWorkspace); err != nil {
+	if err := config.SetConfigValue(dir, "workdir", testWorkspace); err != nil {
 		t.Fatalf("SetConfigValue: %v", err)
 	}
 
@@ -166,7 +179,7 @@ func TestSetConfigValue_CreatesFileAndDir(t *testing.T) {
 		t.Errorf("config.toml not created: %v", err)
 	}
 
-	cfg, err := cmd.LoadConfigFrom(dir)
+	cfg, err := config.LoadConfigFrom(dir)
 	if err != nil {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}
@@ -182,11 +195,11 @@ func TestSetConfigValue_PreservesExistingKeys(t *testing.T) {
 	dir := t.TempDir()
 	writeConfigFile(t, dir, `container_cmd = "docker"`)
 
-	if err := cmd.SetConfigValue(dir, "workdir", testWorkspace); err != nil {
+	if err := config.SetConfigValue(dir, "workdir", testWorkspace); err != nil {
 		t.Fatalf("SetConfigValue: %v", err)
 	}
 
-	cfg, err := cmd.LoadConfigFrom(dir)
+	cfg, err := config.LoadConfigFrom(dir)
 	if err != nil {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}
@@ -220,11 +233,11 @@ func TestSetConfigValue_AdditionalMounts(t *testing.T) {
 
 			dir := t.TempDir()
 
-			if err := cmd.SetConfigValue(dir, "additional_mounts", testCase.value); err != nil {
+			if err := config.SetConfigValue(dir, "additional_mounts", testCase.value); err != nil {
 				t.Fatalf("SetConfigValue: %v", err)
 			}
 
-			cfg, err := cmd.LoadConfigFrom(dir)
+			cfg, err := config.LoadConfigFrom(dir)
 			if err != nil {
 				t.Fatalf("LoadConfigFrom: %v", err)
 			}
@@ -249,11 +262,11 @@ func TestSetConfigValue_PodmanOptionsRun(t *testing.T) {
 
 	dir := t.TempDir()
 
-	if err := cmd.SetConfigValue(dir, "podman_options.run", testPodmanRunOption+","+testPodmanRunOption2); err != nil {
+	if err := config.SetConfigValue(dir, "podman_options.run", testPodmanRunOption+","+testPodmanRunOption2); err != nil {
 		t.Fatalf("SetConfigValue: %v", err)
 	}
 
-	cfg, err := cmd.LoadConfigFrom(dir)
+	cfg, err := config.LoadConfigFrom(dir)
 	if err != nil {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}
@@ -268,7 +281,7 @@ func TestSetConfigValue_PodmanOptionsRun(t *testing.T) {
 func TestSetConfigValue_UnknownKey(t *testing.T) {
 	t.Parallel()
 
-	err := cmd.SetConfigValue(t.TempDir(), "nonexistent_key", "value")
+	err := config.SetConfigValue(t.TempDir(), "nonexistent_key", "value")
 	if err == nil {
 		t.Fatal("expected error for unknown key, got nil")
 	}
@@ -297,7 +310,7 @@ func TestLoadConfigFrom_Defaults(t *testing.T) {
 
 	dir := t.TempDir()
 
-	cfg, err := cmd.LoadConfigFrom(dir)
+	cfg, err := config.LoadConfigFrom(dir)
 	if err != nil {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}
@@ -338,7 +351,7 @@ container_setup_cmds = ["echo setup"]
 run = ["--userns=keep-id"]
 `)
 
-	cfg, err := cmd.LoadConfigFrom(dir)
+	cfg, err := config.LoadConfigFrom(dir)
 	if err != nil {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}
@@ -369,7 +382,7 @@ container_cmd = "podman"
 
 	t.Setenv("XDG_CONFIG_HOME", dir)
 
-	cfg, err := cmd.LoadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
@@ -403,7 +416,7 @@ run = ["--userns=keep-id"]
 	t.Setenv("CHELLY_CONTAINER_SETUP_CMDS", "echo-env")
 	t.Setenv("CHELLY_PODMAN_OPTIONS_RUN", testPodmanRunOption+","+testPodmanRunOption2)
 
-	cfg, err := cmd.LoadConfigFrom(dir)
+	cfg, err := config.LoadConfigFrom(dir)
 	if err != nil {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}

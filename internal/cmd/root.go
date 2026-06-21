@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cmd represents command for chelly.
+// Package cmd defines chelly's Cobra command tree.
 package cmd
 
 import (
@@ -23,18 +23,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "chelly",
-	Short: "A personal container-based development environment manager",
-	Long: `chelly manages a container image built from your ~/.config/chelly directory
+// NewRootCommand returns the root chelly command with all subcommands registered.
+func NewRootCommand() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "chelly",
+		Short: "A personal container-based development environment manager",
+		Long: `chelly manages a container image built from your ~/.config/chelly directory
 and provides commands to run tools inside that container.`,
+	}
+
+	rootCmd.AddCommand(newBuildCommand())
+	rootCmd.AddCommand(newRunCommand())
+	rootCmd.AddCommand(newConfigCommand())
+
+	return rootCmd
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// Execute runs the root command.
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := NewRootCommand().Execute(); err != nil {
 		os.Exit(1)
 	}
 }

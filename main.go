@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "github.com/Warashi/chelly/cmd"
+import "github.com/Warashi/chelly/internal/cmd"
 
 func main() {
 	cmd.Execute()

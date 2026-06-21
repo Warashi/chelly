@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cmd
+// Package config manages chelly configuration loading, formatting, and updates.
+package config
 
 import (
 	"errors"
@@ -192,7 +193,8 @@ func DetectContainerCmd() string {
 	return "docker"
 }
 
-func chellyConfigDir() (string, error) {
+// DefaultConfigDir returns the chelly configuration directory.
+func DefaultConfigDir() (string, error) {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return filepath.Join(xdg, "chelly"), nil
 	}
@@ -207,7 +209,7 @@ func chellyConfigDir() (string, error) {
 
 // LoadConfig loads configuration from the default location and environment variables.
 func LoadConfig() (Config, error) {
-	dir, err := chellyConfigDir()
+	dir, err := DefaultConfigDir()
 	if err != nil {
 		return Config{}, err
 	}

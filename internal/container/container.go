@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cmd
+// Package container builds command arguments and executes the chelly container.
+package container
 
 import (
 	"context"
@@ -23,20 +24,44 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/spf13/cobra"
 )
 
-var runCmd = &cobra.Command{
-	Use:                "run [-- command [args...]]",
-	Short:              "Run a command in the chelly container",
-	Long:               `Run a command inside the chelly container, mounting the current directory.`,
-	DisableFlagParsing: true,
-	RunE:               runRun,
+const (
+	commandBuild = "build"
+
+	// ImageName is the chelly container image tag.
+	ImageName = "chelly:latest"
+)
+
+// PodmanOptions holds Podman-specific container options.
+type PodmanOptions struct {
+	Run []string
 }
 
-func init() {
-	rootCmd.AddCommand(runCmd)
+// BuildConfig holds configuration used by the container image build.
+type BuildConfig struct {
+	ConfigHome string
+}
+
+// RunConfig holds configuration used by container execution.
+type RunConfig struct {
+	ContainerCmd       string
+	Workdir            string
+	AdditionalMounts   []string
+	ContainerSetupCmds []string
+	PodmanOptions      PodmanOptions
+}
+
+// BuildArgs returns the argument slice for the container build command.
+func BuildArgs(cfg BuildConfig, noCacheFlag bool) []string {
+	args := []string{commandBuild}
+	if noCacheFlag {
+		args = append(args, "--no-cache")
+	}
+
+	args = append(args, "--tag", ImageName, cfg.ConfigHome)
+
+	return args
 }
 
 // IsTTY reports whether f is connected to a terminal.
@@ -49,8 +74,8 @@ func IsTTY(f *os.File) bool {
 	return fi.Mode()&os.ModeCharDevice != 0
 }
 
-// ContainerRunArgs returns the argument slice for the container run command.
-func ContainerRunArgs(cfg Config, workDir string, isTTY bool, userArgs []string) []string {
+// RunArgs returns the argument slice for the container run command.
+func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string) []string {
 	args := []string{"run", "--rm"}
 
 	if isTTY {
@@ -68,7 +93,7 @@ func ContainerRunArgs(cfg Config, workDir string, isTTY bool, userArgs []string)
 	}
 
 	args = append(args, "--workdir", cfg.Workdir)
-	args = append(args, "chelly:latest")
+	args = append(args, ImageName)
 
 	if len(cfg.ContainerSetupCmds) > 0 {
 		script := buildSetupScript(cfg.ContainerSetupCmds, userArgs)
@@ -85,9 +110,6 @@ func ContainerRunArgs(cfg Config, workDir string, isTTY bool, userArgs []string)
 	return args
 }
 
-// buildSetupScript generates a shell script that runs setup commands with stdout
-// redirected to stderr. Multiple commands run in parallel; the main user command
-// is exec'd only after all setup commands succeed.
 func buildSetupScript(cmds []string, userArgs []string) string {
 	execSuffix := ""
 	if len(userArgs) > 0 {
@@ -113,7 +135,8 @@ func buildSetupScript(cmds []string, userArgs []string) string {
 	return strings.Join(parts, "; ") + "; " + strings.Join(waits, " && ") + execSuffix
 }
 
-func stripDashDash(args []string) []string {
+// StripDashDash removes Cobra's command separator from user command arguments.
+func StripDashDash(args []string) []string {
 	if len(args) > 0 && args[0] == "--" {
 		return args[1:]
 	}
@@ -121,7 +144,8 @@ func stripDashDash(args []string) []string {
 	return args
 }
 
-func execContainer(ctx context.Context, containerCmd string, args []string) error {
+// Exec runs the configured container command with connected standard streams.
+func Exec(ctx context.Context, containerCmd string, args []string) error {
 	cmd := exec.CommandContext(ctx, containerCmd, args...) //nolint:gosec
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -132,22 +156,4 @@ func execContainer(ctx context.Context, containerCmd string, args []string) erro
 	}
 
 	return nil
-}
-
-func runRun(cobraCmd *cobra.Command, args []string) error {
-	cfg, err := LoadConfig()
-	if err != nil {
-		return err
-	}
-
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("getting working directory: %w", err)
-	}
-
-	tty := IsTTY(os.Stdin) && IsTTY(os.Stdout)
-	userArgs := stripDashDash(args)
-	containerArgs := ContainerRunArgs(cfg, currentDir, tty, userArgs)
-
-	return execContainer(cobraCmd.Context(), cfg.ContainerCmd, containerArgs)
 }

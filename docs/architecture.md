@@ -3,17 +3,17 @@
 ## Overview
 
 chelly is built with [Cobra](https://github.com/spf13/cobra) for CLI and [Viper](https://github.com/spf13/viper) for config.
+`main.go` is only the binary entrypoint; application behavior lives under `internal`.
 
 ## Package structure
 
-All commands live in the `cmd` package following a flat layout (package by feature at the package level):
+The implementation is split by feature under `internal`:
 
-| File              | Responsibility                                        |
-|-------------------|-------------------------------------------------------|
-| `cmd/root.go`     | Root `chelly` command registration                    |
-| `cmd/config.go`   | Config struct, loading from file and environment      |
-| `cmd/build.go`    | `chelly build` subcommand and args construction       |
-| `cmd/run.go`      | `chelly run` subcommand and args construction         |
+| Package              | Responsibility                                                     |
+|----------------------|--------------------------------------------------------------------|
+| `internal/cmd`       | Cobra command tree and wiring for `build`, `run`, and `config`     |
+| `internal/config`    | Config struct, loading from file/environment, formatting, updates  |
+| `internal/container` | Container argument construction, TTY detection, command execution  |
 
 ## Config loading
 
@@ -23,14 +23,14 @@ All commands live in the `cmd` package following a flat layout (package by featu
 2. Binds `CHELLY_*` environment variables (env overrides config file)
 3. Applies defaults
 
-The public `LoadConfig()` resolves the config directory from `os.UserConfigDir()` and delegates.
+The public `LoadConfig()` resolves the config directory with `DefaultConfigDir()` and delegates.
 
 ## Args construction
 
 Arg-building logic is separated from execution:
 
-- `BuildArgs(cfg, noCache)` returns the `docker build ...` argument slice
-- `ContainerRunArgs(cfg, wd, isTTY, userArgs)` returns the `docker run ...` argument slice
+- `container.BuildArgs(cfg, noCache)` returns the `docker build ...` argument slice
+- `container.RunArgs(cfg, wd, isTTY, userArgs)` returns the `docker run ...` argument slice
 - `podman_options.run` is inserted only when `container_cmd` resolves to a basename of `podman`
 
 This makes unit testing straightforward: tests call these functions directly and assert the returned slices without any subprocess mocking.
@@ -39,10 +39,9 @@ This makes unit testing straightforward: tests call these functions directly and
 
 `DetectContainerCmd()` probes `PATH` for `container`, `podman`, `docker` in that order and returns the first found. It is used as the default for `container_cmd` when not configured.
 
-## Container image and volume naming
+## Container image naming
 
 - Image: `chelly:latest` (hardcoded)
-- Named volume for `/home`: `chelly-home` (hardcoded, persists across runs)
 
 ## TTY detection
 
