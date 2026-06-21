@@ -97,12 +97,15 @@
 
       devshells.default = {
         devshell = {
-          packages = with pkgs; [
-            # keep-sorted start
-            golangci-lint
-            gomod2nix
-            # keep-sorted end
-          ];
+          packages =
+            with pkgs;
+            [
+              # keep-sorted start
+              golangci-lint
+              gomod2nix
+              # keep-sorted end
+            ]
+            ++ pkgs.lib.optional pkgs.stdenv.isLinux pkgs.gcc;
           packagesFrom = [
             goEnv
           ];
