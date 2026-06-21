@@ -27,6 +27,8 @@ const (
 	testSetupCmd2          = "echo setup2"
 	testMountA             = "/a:/a"
 	testMountB             = "/b:/b"
+	testPodmanRunOption    = "--userns=keep-id"
+	testPodmanRunOption2   = "--security-opt=label=disable"
 
 	imageChelly     = "chelly:latest"
 	flagRM          = "--rm"

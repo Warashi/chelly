@@ -31,6 +31,7 @@ Arg-building logic is separated from execution:
 
 - `BuildArgs(cfg, noCache)` returns the `docker build ...` argument slice
 - `ContainerRunArgs(cfg, wd, isTTY, userArgs)` returns the `docker run ...` argument slice
+- `podman_options.run` is inserted only when `container_cmd` resolves to a basename of `podman`
 
 This makes unit testing straightforward: tests call these functions directly and assert the returned slices without any subprocess mocking.
 

@@ -19,12 +19,21 @@ package cmd_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/Warashi/chelly/cmd"
 	"github.com/pelletier/go-toml/v2"
 )
+
+func assertStringSlice(t *testing.T, name string, got, want []string) {
+	t.Helper()
+
+	if !slices.Equal(got, want) {
+		t.Errorf("%s: got %v, want %v", name, got, want)
+	}
+}
 
 func TestFormatConfig_RoundTrip(t *testing.T) {
 	t.Parallel()
@@ -35,6 +44,7 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 		Workdir:            testWorkspace,
 		AdditionalMounts:   []string{testMountA},
 		ContainerSetupCmds: []string{testSetupCmd},
+		PodmanOptions:      cmd.PodmanOptions{Run: []string{testPodmanRunOption}},
 	}
 
 	out, err := cmd.FormatConfig(original)
@@ -59,15 +69,9 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 		t.Errorf("Workdir: got %q, want %q", roundTripped.Workdir, original.Workdir)
 	}
 
-	if len(roundTripped.AdditionalMounts) != len(original.AdditionalMounts) ||
-		roundTripped.AdditionalMounts[0] != original.AdditionalMounts[0] {
-		t.Errorf("AdditionalMounts: got %v, want %v", roundTripped.AdditionalMounts, original.AdditionalMounts)
-	}
-
-	if len(roundTripped.ContainerSetupCmds) != len(original.ContainerSetupCmds) ||
-		roundTripped.ContainerSetupCmds[0] != original.ContainerSetupCmds[0] {
-		t.Errorf("ContainerSetupCmds: got %v, want %v", roundTripped.ContainerSetupCmds, original.ContainerSetupCmds)
-	}
+	assertStringSlice(t, "AdditionalMounts", roundTripped.AdditionalMounts, original.AdditionalMounts)
+	assertStringSlice(t, "ContainerSetupCmds", roundTripped.ContainerSetupCmds, original.ContainerSetupCmds)
+	assertStringSlice(t, "PodmanOptions.Run", roundTripped.PodmanOptions.Run, original.PodmanOptions.Run)
 }
 
 func TestGetConfigValue(t *testing.T) {
@@ -79,6 +83,7 @@ func TestGetConfigValue(t *testing.T) {
 		Workdir:            testWorkspace,
 		AdditionalMounts:   []string{testMountA, testMountB},
 		ContainerSetupCmds: []string{testSetupCmd, testSetupCmd2},
+		PodmanOptions:      cmd.PodmanOptions{Run: []string{testPodmanRunOption, testPodmanRunOption2}},
 	}
 
 	cases := []struct {
@@ -90,6 +95,7 @@ func TestGetConfigValue(t *testing.T) {
 		{"workdir", testWorkspace},
 		{"additional_mounts", testMountA + "," + testMountB},
 		{"container_setup_cmds", testSetupCmd + "," + testSetupCmd2},
+		{"podman_options.run", testPodmanRunOption + "," + testPodmanRunOption2},
 	}
 
 	for _, testCase := range cases {
@@ -117,6 +123,7 @@ func TestGetConfigValue_UnknownKey(t *testing.T) {
 		Workdir:            "",
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
+		PodmanOptions:      cmd.PodmanOptions{Run: nil},
 	}, "nonexistent_key")
 	if err == nil {
 		t.Fatal("expected error for unknown key, got nil")
@@ -237,6 +244,27 @@ func TestSetConfigValue_AdditionalMounts(t *testing.T) {
 	}
 }
 
+func TestSetConfigValue_PodmanOptionsRun(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	if err := cmd.SetConfigValue(dir, "podman_options.run", testPodmanRunOption+","+testPodmanRunOption2); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	cfg, err := cmd.LoadConfigFrom(dir)
+	if err != nil {
+		t.Fatalf("LoadConfigFrom: %v", err)
+	}
+
+	if len(cfg.PodmanOptions.Run) != 2 ||
+		cfg.PodmanOptions.Run[0] != testPodmanRunOption ||
+		cfg.PodmanOptions.Run[1] != testPodmanRunOption2 {
+		t.Errorf("PodmanOptions.Run: got %v, want [%q %q]", cfg.PodmanOptions.Run, testPodmanRunOption, testPodmanRunOption2)
+	}
+}
+
 func TestSetConfigValue_UnknownKey(t *testing.T) {
 	t.Parallel()
 
@@ -286,6 +314,10 @@ func TestLoadConfigFrom_Defaults(t *testing.T) {
 		t.Errorf("ContainerSetupCmds: got %v, want empty", cfg.ContainerSetupCmds)
 	}
 
+	if len(cfg.PodmanOptions.Run) != 0 {
+		t.Errorf("PodmanOptions.Run: got %v, want empty", cfg.PodmanOptions.Run)
+	}
+
 	if cfg.Workdir == "" {
 		t.Error("Workdir: got empty, want current directory")
 	}
@@ -301,6 +333,9 @@ config_home = "/custom/context"
 workdir = "/workspace"
 additional_mounts = ["/host:/container"]
 container_setup_cmds = ["echo setup"]
+
+[podman_options]
+run = ["--userns=keep-id"]
 `)
 
 	cfg, err := cmd.LoadConfigFrom(dir)
@@ -320,13 +355,9 @@ container_setup_cmds = ["echo setup"]
 		t.Errorf("Workdir: got %q, want %q", cfg.Workdir, testWorkspace)
 	}
 
-	if len(cfg.AdditionalMounts) != 1 || cfg.AdditionalMounts[0] != "/host:/container" {
-		t.Errorf("AdditionalMounts: got %v, want [/host:/container]", cfg.AdditionalMounts)
-	}
-
-	if len(cfg.ContainerSetupCmds) != 1 || cfg.ContainerSetupCmds[0] != testSetupCmd {
-		t.Errorf("ContainerSetupCmds: got %v, want [%q]", cfg.ContainerSetupCmds, testSetupCmd)
-	}
+	assertStringSlice(t, "AdditionalMounts", cfg.AdditionalMounts, []string{"/host:/container"})
+	assertStringSlice(t, "ContainerSetupCmds", cfg.ContainerSetupCmds, []string{testSetupCmd})
+	assertStringSlice(t, "PodmanOptions.Run", cfg.PodmanOptions.Run, []string{testPodmanRunOption})
 }
 
 func TestLoadConfig_XDGConfigHome(t *testing.T) {
@@ -360,6 +391,9 @@ config_home = "/config-file-context"
 workdir = "/config-file-workdir"
 additional_mounts = ["/config-file:/config-file"]
 container_setup_cmds = ["echo config-file"]
+
+[podman_options]
+run = ["--userns=keep-id"]
 `)
 
 	t.Setenv("CHELLY_CONTAINER_CMD", testContainerCmdPodman)
@@ -367,6 +401,7 @@ container_setup_cmds = ["echo config-file"]
 	t.Setenv("CHELLY_WORKDIR", "/env-workdir")
 	t.Setenv("CHELLY_ADDITIONAL_MOUNTS", "/env-host:/env-container")
 	t.Setenv("CHELLY_CONTAINER_SETUP_CMDS", "echo-env")
+	t.Setenv("CHELLY_PODMAN_OPTIONS_RUN", testPodmanRunOption+","+testPodmanRunOption2)
 
 	cfg, err := cmd.LoadConfigFrom(dir)
 	if err != nil {
@@ -385,11 +420,7 @@ container_setup_cmds = ["echo config-file"]
 		t.Errorf("Workdir: got %q, want %q", cfg.Workdir, "/env-workdir")
 	}
 
-	if len(cfg.AdditionalMounts) != 1 || cfg.AdditionalMounts[0] != "/env-host:/env-container" {
-		t.Errorf("AdditionalMounts: got %v, want [/env-host:/env-container]", cfg.AdditionalMounts)
-	}
-
-	if len(cfg.ContainerSetupCmds) != 1 || cfg.ContainerSetupCmds[0] != "echo-env" {
-		t.Errorf("ContainerSetupCmds: got %v, want [\"echo-env\"]", cfg.ContainerSetupCmds)
-	}
+	assertStringSlice(t, "AdditionalMounts", cfg.AdditionalMounts, []string{"/env-host:/env-container"})
+	assertStringSlice(t, "ContainerSetupCmds", cfg.ContainerSetupCmds, []string{"echo-env"})
+	assertStringSlice(t, "PodmanOptions.Run", cfg.PodmanOptions.Run, []string{testPodmanRunOption, testPodmanRunOption2})
 }

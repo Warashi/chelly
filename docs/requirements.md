@@ -32,15 +32,15 @@ Print all current effective configuration values in TOML format.
 
 Print the effective value of a single configuration key.
 
-- `key`: one of `container_cmd`, `config_home`, `workdir`, `additional_mounts`, `container_setup_cmds`
-- For `additional_mounts` and `container_setup_cmds`, prints values as a comma-separated string
+- `key`: one of `container_cmd`, `config_home`, `workdir`, `additional_mounts`, `container_setup_cmds`, `podman_options.run`
+- For `additional_mounts`, `container_setup_cmds`, and `podman_options.run`, prints values as a comma-separated string
 
 ### `chelly config set <key> <value>`
 
 Write a key-value pair to `config.toml`.
 
 - Creates the config file and its directory if they do not exist
-- For `additional_mounts`, `value` is a comma-separated list of `host:container` mount specs
+- For `additional_mounts`, `container_setup_cmds`, and `podman_options.run`, `value` is a comma-separated list
 - Environment variable overrides still take precedence when reading back via `list`/`get`
 
 ## Configuration
@@ -56,6 +56,7 @@ Environment variables override config file values.
 | `workdir`              | `CHELLY_WORKDIR`               | current directory            | Working directory inside the container               |
 | `additional_mounts`    | `CHELLY_ADDITIONAL_MOUNTS`     | (empty)                      | Additional volume mounts (`host:container` format, comma-separated for env var) |
 | `container_setup_cmds` | `CHELLY_CONTAINER_SETUP_CMDS`  | (empty)                      | Shell commands to run inside the container before the main command; multiple commands run in parallel with stdout redirected to stderr |
+| `podman_options.run`   | `CHELLY_PODMAN_OPTIONS_RUN`    | (empty)                      | Additional `podman run` options used only when the container command is `podman` |
 
 ### Example config file
 
@@ -64,4 +65,7 @@ container_cmd = "podman"
 workdir = "/workspace"
 additional_mounts = ["/home/user/.ssh:/home/user/.ssh"]
 container_setup_cmds = ["source /etc/profile", "mise activate"]
+
+[podman_options]
+run = ["--userns=keep-id"]
 ```

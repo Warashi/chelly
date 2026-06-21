@@ -30,6 +30,7 @@ func runConfig() cmd.Config {
 		Workdir:            testWorkDir,
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
+		PodmanOptions:      cmd.PodmanOptions{Run: nil},
 	}
 }
 
@@ -82,6 +83,48 @@ func TestContainerRunArgs_AdditionalMounts(t *testing.T) {
 		flagVolume, testWorkDirMount,
 		flagVolume, "/host1:/cont1",
 		flagVolume, "/host2:/cont2",
+		flagWorkdir, testWorkDir,
+		imageChelly,
+		"ls",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ContainerRunArgs: got %v, want %v", got, want)
+	}
+}
+
+func TestContainerRunArgs_PodmanOptionsRun(t *testing.T) {
+	t.Parallel()
+
+	cfg := runConfig()
+	cfg.ContainerCmd = testContainerCmdPodman
+	cfg.PodmanOptions.Run = []string{testPodmanRunOption, testPodmanRunOption2}
+
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{"ls"})
+	want := []string{
+		cmdRun, flagRM,
+		testPodmanRunOption, testPodmanRunOption2,
+		flagVolume, testWorkDirMount,
+		flagWorkdir, testWorkDir,
+		imageChelly,
+		"ls",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ContainerRunArgs: got %v, want %v", got, want)
+	}
+}
+
+func TestContainerRunArgs_PodmanOptionsRunIgnoredForDocker(t *testing.T) {
+	t.Parallel()
+
+	cfg := runConfig()
+	cfg.PodmanOptions.Run = []string{testPodmanRunOption}
+
+	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{"ls"})
+	want := []string{
+		cmdRun, flagRM,
+		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		imageChelly,
 		"ls",
@@ -203,11 +246,13 @@ func TestContainerRunArgs_AllOptions(t *testing.T) {
 		Workdir:            testWorkspace,
 		AdditionalMounts:   []string{"/home/user/.ssh:/home/user/.ssh"},
 		ContainerSetupCmds: []string{"source /etc/profile"},
+		PodmanOptions:      cmd.PodmanOptions{Run: []string{testPodmanRunOption}},
 	}
 
 	got := cmd.ContainerRunArgs(cfg, testWorkDir, false, []string{cmdBash, "-c", "echo hi"})
 	want := []string{
 		cmdRun, flagRM,
+		testPodmanRunOption,
 		flagVolume, testWorkDirMount,
 		flagVolume, "/home/user/.ssh:/home/user/.ssh",
 		flagWorkdir, testWorkspace,

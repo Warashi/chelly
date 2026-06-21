@@ -51,7 +51,7 @@ var setCmd = &cobra.Command{
 	Use:   "set <key> <value>",
 	Short: "Set a configuration value in config.toml",
 	Long: `Write a configuration key-value pair to the config.toml file.
-For additional_mounts, provide a comma-separated list.`,
+For list values, provide a comma-separated list.`,
 	Args: cobra.ExactArgs(configSetArgs),
 	RunE: runConfigSet,
 }

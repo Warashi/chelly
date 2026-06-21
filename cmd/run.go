@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -54,6 +55,10 @@ func ContainerRunArgs(cfg Config, workDir string, isTTY bool, userArgs []string)
 
 	if isTTY {
 		args = append(args, "--interactive", "--tty")
+	}
+
+	if filepath.Base(cfg.ContainerCmd) == "podman" {
+		args = append(args, cfg.PodmanOptions.Run...)
 	}
 
 	args = append(args, "--volume", workDir+":"+workDir)

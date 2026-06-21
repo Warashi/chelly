@@ -34,18 +34,25 @@ const (
 	filePerm              = 0o600
 	keyAdditionalMounts   = "additional_mounts"
 	keyContainerSetupCmds = "container_setup_cmds"
+	keyPodmanOptionsRun   = "podman_options.run"
 )
 
 // ErrUnknownConfigKey is returned when an unrecognized configuration key is used.
 var ErrUnknownConfigKey = errors.New("unknown config key")
 
+// PodmanOptions holds Podman-specific container options.
+type PodmanOptions struct {
+	Run []string `toml:"run"`
+}
+
 // Config holds the chelly configuration.
 type Config struct {
-	ContainerCmd       string   `toml:"container_cmd"`
-	ConfigHome         string   `toml:"config_home"`
-	Workdir            string   `toml:"workdir"`
-	AdditionalMounts   []string `toml:"additional_mounts"`
-	ContainerSetupCmds []string `toml:"container_setup_cmds"`
+	ContainerCmd       string        `toml:"container_cmd"`
+	ConfigHome         string        `toml:"config_home"`
+	Workdir            string        `toml:"workdir"`
+	AdditionalMounts   []string      `toml:"additional_mounts"`
+	ContainerSetupCmds []string      `toml:"container_setup_cmds"`
+	PodmanOptions      PodmanOptions `toml:"podman_options"`
 }
 
 // validConfigKeys is the list of all valid configuration key names.
@@ -55,6 +62,7 @@ var validConfigKeys = []string{
 	"workdir",
 	keyAdditionalMounts,
 	keyContainerSetupCmds,
+	keyPodmanOptionsRun,
 }
 
 // FormatConfig serializes cfg to a TOML string representing the effective configuration.
@@ -81,26 +89,58 @@ func GetConfigValue(cfg Config, key string) (string, error) {
 		return strings.Join(cfg.AdditionalMounts, ","), nil
 	case keyContainerSetupCmds:
 		return strings.Join(cfg.ContainerSetupCmds, ","), nil
+	case keyPodmanOptionsRun:
+		return strings.Join(cfg.PodmanOptions.Run, ","), nil
 	default:
 		return "", fmt.Errorf("%w %q: valid keys are %s", ErrUnknownConfigKey, key, strings.Join(validConfigKeys, ", "))
 	}
 }
 
-func applyConfigValue(data map[string]any, key, value string) {
-	switch key {
-	case keyAdditionalMounts, keyContainerSetupCmds:
-		var items []string
+func configListValue(value string) []string {
+	var items []string
 
-		for item := range strings.SplitSeq(value, ",") {
-			if item = strings.TrimSpace(item); item != "" {
-				items = append(items, item)
-			}
+	for item := range strings.SplitSeq(value, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			items = append(items, item)
+		}
+	}
+
+	return items
+}
+
+func configListValueFrom(viperInst *viper.Viper, key string) []string {
+	envName := "CHELLY_" + strings.ToUpper(strings.NewReplacer(".", "_").Replace(key))
+	if value, ok := os.LookupEnv(envName); ok {
+		return configListValue(value)
+	}
+
+	return viperInst.GetStringSlice(key)
+}
+
+func applyConfigValue(data map[string]any, key, value string) {
+	var configValue any
+
+	switch key {
+	case keyAdditionalMounts, keyContainerSetupCmds, keyPodmanOptionsRun:
+		configValue = configListValue(value)
+	default:
+		configValue = value
+	}
+
+	parts := strings.Split(key, ".")
+
+	current := data
+	for _, part := range parts[:len(parts)-1] {
+		next, ok := current[part].(map[string]any)
+		if !ok {
+			next = map[string]any{}
+			current[part] = next
 		}
 
-		data[key] = items
-	default:
-		data[key] = value
+		current = next
 	}
+
+	current[parts[len(parts)-1]] = configValue
 }
 
 // SetConfigValue writes key=value into the TOML config file in configDir.
@@ -184,12 +224,14 @@ func LoadConfigFrom(configDir string) (Config, error) {
 	viperInst.AddConfigPath(configDir)
 
 	viperInst.SetEnvPrefix("CHELLY")
+	viperInst.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viperInst.AutomaticEnv()
 
 	viperInst.SetDefault("container_cmd", DetectContainerCmd())
 	viperInst.SetDefault("config_home", configDir)
 	viperInst.SetDefault("additional_mounts", []string{})
 	viperInst.SetDefault("container_setup_cmds", []string{})
+	viperInst.SetDefault(keyPodmanOptionsRun, []string{})
 
 	if err := viperInst.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
@@ -212,7 +254,8 @@ func LoadConfigFrom(configDir string) (Config, error) {
 		ContainerCmd:       viperInst.GetString("container_cmd"),
 		ConfigHome:         viperInst.GetString("config_home"),
 		Workdir:            workdir,
-		AdditionalMounts:   viperInst.GetStringSlice("additional_mounts"),
-		ContainerSetupCmds: viperInst.GetStringSlice("container_setup_cmds"),
+		AdditionalMounts:   configListValueFrom(viperInst, keyAdditionalMounts),
+		ContainerSetupCmds: configListValueFrom(viperInst, keyContainerSetupCmds),
+		PodmanOptions:      PodmanOptions{Run: configListValueFrom(viperInst, keyPodmanOptionsRun)},
 	}, nil
 }

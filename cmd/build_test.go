@@ -30,6 +30,7 @@ func baseConfig() cmd.Config {
 		Workdir:            testWorkspace,
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
+		PodmanOptions:      cmd.PodmanOptions{Run: nil},
 	}
 }
 
