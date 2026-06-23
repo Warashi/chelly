@@ -36,6 +36,8 @@ const (
 	testSetupCmd2          = "echo setup2"
 	testMountA             = "/a:/a"
 	testMountB             = "/b:/b"
+	testInheritEnv         = "SSH_AUTH_SOCK"
+	testInheritEnv2        = "GITHUB_TOKEN"
 	testPodmanRunOption    = "--userns=keep-id"
 	testPodmanRunOption2   = "--security-opt=label=disable"
 )
@@ -57,6 +59,7 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 		Workdir:            testWorkspace,
 		AdditionalMounts:   []string{testMountA},
 		ContainerSetupCmds: []string{testSetupCmd},
+		InheritEnv:         []string{testInheritEnv},
 		PodmanOptions:      config.PodmanOptions{Run: []string{testPodmanRunOption}},
 	}
 
@@ -84,6 +87,7 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 
 	assertStringSlice(t, "AdditionalMounts", roundTripped.AdditionalMounts, original.AdditionalMounts)
 	assertStringSlice(t, "ContainerSetupCmds", roundTripped.ContainerSetupCmds, original.ContainerSetupCmds)
+	assertStringSlice(t, "InheritEnv", roundTripped.InheritEnv, original.InheritEnv)
 	assertStringSlice(t, "PodmanOptions.Run", roundTripped.PodmanOptions.Run, original.PodmanOptions.Run)
 }
 
@@ -96,6 +100,7 @@ func TestGetConfigValue(t *testing.T) {
 		Workdir:            testWorkspace,
 		AdditionalMounts:   []string{testMountA, testMountB},
 		ContainerSetupCmds: []string{testSetupCmd, testSetupCmd2},
+		InheritEnv:         []string{testInheritEnv, testInheritEnv2},
 		PodmanOptions:      config.PodmanOptions{Run: []string{testPodmanRunOption, testPodmanRunOption2}},
 	}
 
@@ -108,6 +113,7 @@ func TestGetConfigValue(t *testing.T) {
 		{"workdir", testWorkspace},
 		{"additional_mounts", testMountA + "," + testMountB},
 		{"container_setup_cmds", testSetupCmd + "," + testSetupCmd2},
+		{"inherit_env", testInheritEnv + "," + testInheritEnv2},
 		{"podman_options.run", testPodmanRunOption + "," + testPodmanRunOption2},
 	}
 
@@ -136,6 +142,7 @@ func TestGetConfigValue_UnknownKey(t *testing.T) {
 		Workdir:            "",
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
+		InheritEnv:         nil,
 		PodmanOptions:      config.PodmanOptions{Run: nil},
 	}, "nonexistent_key")
 	if err == nil {
@@ -278,6 +285,23 @@ func TestSetConfigValue_PodmanOptionsRun(t *testing.T) {
 	}
 }
 
+func TestSetConfigValue_InheritEnv(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	if err := config.SetConfigValue(dir, "inherit_env", testInheritEnv+","+testInheritEnv2); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	cfg, err := config.LoadConfigFrom(dir)
+	if err != nil {
+		t.Fatalf("LoadConfigFrom: %v", err)
+	}
+
+	assertStringSlice(t, "InheritEnv", cfg.InheritEnv, []string{testInheritEnv, testInheritEnv2})
+}
+
 func TestSetConfigValue_UnknownKey(t *testing.T) {
 	t.Parallel()
 
@@ -327,6 +351,10 @@ func TestLoadConfigFrom_Defaults(t *testing.T) {
 		t.Errorf("ContainerSetupCmds: got %v, want empty", cfg.ContainerSetupCmds)
 	}
 
+	if len(cfg.InheritEnv) != 0 {
+		t.Errorf("InheritEnv: got %v, want empty", cfg.InheritEnv)
+	}
+
 	if len(cfg.PodmanOptions.Run) != 0 {
 		t.Errorf("PodmanOptions.Run: got %v, want empty", cfg.PodmanOptions.Run)
 	}
@@ -346,6 +374,7 @@ config_home = "/custom/context"
 workdir = "/workspace"
 additional_mounts = ["/host:/container"]
 container_setup_cmds = ["echo setup"]
+inherit_env = ["SSH_AUTH_SOCK"]
 
 [podman_options]
 run = ["--userns=keep-id"]
@@ -370,6 +399,7 @@ run = ["--userns=keep-id"]
 
 	assertStringSlice(t, "AdditionalMounts", cfg.AdditionalMounts, []string{"/host:/container"})
 	assertStringSlice(t, "ContainerSetupCmds", cfg.ContainerSetupCmds, []string{testSetupCmd})
+	assertStringSlice(t, "InheritEnv", cfg.InheritEnv, []string{testInheritEnv})
 	assertStringSlice(t, "PodmanOptions.Run", cfg.PodmanOptions.Run, []string{testPodmanRunOption})
 }
 
@@ -404,6 +434,7 @@ config_home = "/config-file-context"
 workdir = "/config-file-workdir"
 additional_mounts = ["/config-file:/config-file"]
 container_setup_cmds = ["echo config-file"]
+inherit_env = ["CONFIG_FILE_TOKEN"]
 
 [podman_options]
 run = ["--userns=keep-id"]
@@ -414,6 +445,7 @@ run = ["--userns=keep-id"]
 	t.Setenv("CHELLY_WORKDIR", "/env-workdir")
 	t.Setenv("CHELLY_ADDITIONAL_MOUNTS", "/env-host:/env-container")
 	t.Setenv("CHELLY_CONTAINER_SETUP_CMDS", "echo-env")
+	t.Setenv("CHELLY_INHERIT_ENV", testInheritEnv+","+testInheritEnv2)
 	t.Setenv("CHELLY_PODMAN_OPTIONS_RUN", testPodmanRunOption+","+testPodmanRunOption2)
 
 	cfg, err := config.LoadConfigFrom(dir)
@@ -435,5 +467,38 @@ run = ["--userns=keep-id"]
 
 	assertStringSlice(t, "AdditionalMounts", cfg.AdditionalMounts, []string{"/env-host:/env-container"})
 	assertStringSlice(t, "ContainerSetupCmds", cfg.ContainerSetupCmds, []string{"echo-env"})
+	assertStringSlice(t, "InheritEnv", cfg.InheritEnv, []string{testInheritEnv, testInheritEnv2})
 	assertStringSlice(t, "PodmanOptions.Run", cfg.PodmanOptions.Run, []string{testPodmanRunOption, testPodmanRunOption2})
+}
+
+func TestValidateInheritEnv(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		values  []string
+		wantErr bool
+	}{
+		{"empty", nil, false},
+		{"valid", []string{"SSH_AUTH_SOCK", "_TOKEN", "GITHUB_TOKEN2"}, false},
+		{"contains equals", []string{"FOO=bar"}, true},
+		{"starts with number", []string{"1TOKEN"}, true},
+		{"contains hyphen", []string{"GITHUB-TOKEN"}, true},
+		{"empty name", []string{""}, true},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := config.ValidateInheritEnv(testCase.values)
+			if testCase.wantErr && err == nil {
+				t.Fatal("ValidateInheritEnv returned nil, want error")
+			}
+
+			if !testCase.wantErr && err != nil {
+				t.Fatalf("ValidateInheritEnv: %v", err)
+			}
+		})
+	}
 }

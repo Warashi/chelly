@@ -37,6 +37,10 @@ func newRunCommand() *cobra.Command {
 				return fmt.Errorf("loading config: %w", err)
 			}
 
+			if err := config.ValidateInheritEnv(cfg.InheritEnv); err != nil {
+				return fmt.Errorf("validating inherit_env: %w", err)
+			}
+
 			currentDir, err := os.Getwd()
 			if err != nil {
 				return fmt.Errorf("getting working directory: %w", err)
@@ -49,6 +53,7 @@ func newRunCommand() *cobra.Command {
 				Workdir:            cfg.Workdir,
 				AdditionalMounts:   cfg.AdditionalMounts,
 				ContainerSetupCmds: cfg.ContainerSetupCmds,
+				InheritEnv:         cfg.InheritEnv,
 				PodmanOptions:      container.PodmanOptions{Run: cfg.PodmanOptions.Run},
 			}, currentDir, tty, userArgs)
 

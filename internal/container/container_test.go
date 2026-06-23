@@ -43,11 +43,14 @@ const (
 	testWorkspace          = "/workspace"
 	testSetupCmd           = "echo setup"
 	testSetupCmd2          = "echo setup2"
+	testInheritEnv         = "SSH_AUTH_SOCK"
+	testInheritEnv2        = "GITHUB_TOKEN"
 	testPodmanRunOption    = "--userns=keep-id"
 	testPodmanRunOption2   = "--security-opt=label=disable"
 
 	flagRM          = "--rm"
 	flagVolume      = "--volume"
+	flagEnv         = "--env"
 	flagWorkdir     = "--workdir"
 	flagInteractive = "--interactive"
 	flagTTY         = "--tty"
@@ -71,6 +74,7 @@ func baseRunConfig() RunConfig {
 		Workdir:            testWorkDir,
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
+		InheritEnv:         nil,
 		PodmanOptions:      PodmanOptions{Run: nil},
 	}
 }
@@ -170,6 +174,52 @@ func TestRunArgs_PodmanOptionsRun(t *testing.T) {
 		cmdRun, flagRM,
 		testPodmanRunOption, testPodmanRunOption2,
 		flagVolume, testWorkDirMount,
+		flagWorkdir, testWorkDir,
+		container.ImageName,
+		"ls",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("RunArgs: got %v, want %v", got, want)
+	}
+}
+
+func TestRunArgs_InheritEnv(t *testing.T) {
+	t.Parallel()
+
+	cfg := baseRunConfig()
+	cfg.InheritEnv = []string{testInheritEnv, testInheritEnv2}
+
+	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
+	want := []string{
+		cmdRun, flagRM,
+		flagVolume, testWorkDirMount,
+		flagEnv, testInheritEnv,
+		flagEnv, testInheritEnv2,
+		flagWorkdir, testWorkDir,
+		container.ImageName,
+		"ls",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("RunArgs: got %v, want %v", got, want)
+	}
+}
+
+func TestRunArgs_InheritEnvAfterPodmanOptions(t *testing.T) {
+	t.Parallel()
+
+	cfg := baseRunConfig()
+	cfg.ContainerCmd = testContainerCmdPodman
+	cfg.PodmanOptions.Run = []string{"--env", "SSH_AUTH_SOCK=/tmp/socket"}
+	cfg.InheritEnv = []string{testInheritEnv}
+
+	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
+	want := []string{
+		cmdRun, flagRM,
+		"--env", "SSH_AUTH_SOCK=/tmp/socket",
+		flagVolume, testWorkDirMount,
+		flagEnv, testInheritEnv,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
 		"ls",
@@ -332,6 +382,7 @@ func TestRunArgs_AllOptions(t *testing.T) {
 		Workdir:            testWorkspace,
 		AdditionalMounts:   []string{"/home/user/.ssh:/home/user/.ssh"},
 		ContainerSetupCmds: []string{"source /etc/profile"},
+		InheritEnv:         []string{testInheritEnv},
 		PodmanOptions:      PodmanOptions{Run: []string{testPodmanRunOption}},
 	}
 
@@ -341,6 +392,7 @@ func TestRunArgs_AllOptions(t *testing.T) {
 		testPodmanRunOption,
 		flagVolume, testWorkDirMount,
 		flagVolume, "/home/user/.ssh:/home/user/.ssh",
+		flagEnv, testInheritEnv,
 		flagWorkdir, testWorkspace,
 		container.ImageName,
 		shellSh, shellFlagLC, `source /etc/profile >&2 && exec "$@"`, shellSh,

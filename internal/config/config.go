@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -35,11 +36,17 @@ const (
 	filePerm              = 0o600
 	keyAdditionalMounts   = "additional_mounts"
 	keyContainerSetupCmds = "container_setup_cmds"
+	keyInheritEnv         = "inherit_env"
 	keyPodmanOptionsRun   = "podman_options.run"
 )
 
 // ErrUnknownConfigKey is returned when an unrecognized configuration key is used.
 var ErrUnknownConfigKey = errors.New("unknown config key")
+
+// ErrInvalidEnvName is returned when inherit_env contains an invalid environment variable name.
+var ErrInvalidEnvName = errors.New("invalid environment variable name")
+
+var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // PodmanOptions holds Podman-specific container options.
 type PodmanOptions struct {
@@ -53,6 +60,7 @@ type Config struct {
 	Workdir            string        `toml:"workdir"`
 	AdditionalMounts   []string      `toml:"additional_mounts"`
 	ContainerSetupCmds []string      `toml:"container_setup_cmds"`
+	InheritEnv         []string      `toml:"inherit_env"`
 	PodmanOptions      PodmanOptions `toml:"podman_options"`
 }
 
@@ -63,6 +71,7 @@ var validConfigKeys = []string{
 	"workdir",
 	keyAdditionalMounts,
 	keyContainerSetupCmds,
+	keyInheritEnv,
 	keyPodmanOptionsRun,
 }
 
@@ -90,6 +99,8 @@ func GetConfigValue(cfg Config, key string) (string, error) {
 		return strings.Join(cfg.AdditionalMounts, ","), nil
 	case keyContainerSetupCmds:
 		return strings.Join(cfg.ContainerSetupCmds, ","), nil
+	case keyInheritEnv:
+		return strings.Join(cfg.InheritEnv, ","), nil
 	case keyPodmanOptionsRun:
 		return strings.Join(cfg.PodmanOptions.Run, ","), nil
 	default:
@@ -122,7 +133,7 @@ func applyConfigValue(data map[string]any, key, value string) {
 	var configValue any
 
 	switch key {
-	case keyAdditionalMounts, keyContainerSetupCmds, keyPodmanOptionsRun:
+	case keyAdditionalMounts, keyContainerSetupCmds, keyInheritEnv, keyPodmanOptionsRun:
 		configValue = configListValue(value)
 	default:
 		configValue = value
@@ -182,6 +193,17 @@ func SetConfigValue(configDir, key, value string) error {
 	return nil
 }
 
+// ValidateInheritEnv returns an error when inherit_env contains an invalid environment variable name.
+func ValidateInheritEnv(names []string) error {
+	for _, name := range names {
+		if !envNamePattern.MatchString(name) {
+			return fmt.Errorf("%w %q", ErrInvalidEnvName, name)
+		}
+	}
+
+	return nil
+}
+
 // DetectContainerCmd returns the first available container runtime found in PATH.
 func DetectContainerCmd() string {
 	for _, name := range []string{"container", "podman", "docker"} {
@@ -233,6 +255,7 @@ func LoadConfigFrom(configDir string) (Config, error) {
 	viperInst.SetDefault("config_home", configDir)
 	viperInst.SetDefault("additional_mounts", []string{})
 	viperInst.SetDefault("container_setup_cmds", []string{})
+	viperInst.SetDefault("inherit_env", []string{})
 	viperInst.SetDefault(keyPodmanOptionsRun, []string{})
 
 	if err := viperInst.ReadInConfig(); err != nil {
@@ -258,6 +281,7 @@ func LoadConfigFrom(configDir string) (Config, error) {
 		Workdir:            workdir,
 		AdditionalMounts:   configListValueFrom(viperInst, keyAdditionalMounts),
 		ContainerSetupCmds: configListValueFrom(viperInst, keyContainerSetupCmds),
+		InheritEnv:         configListValueFrom(viperInst, keyInheritEnv),
 		PodmanOptions:      PodmanOptions{Run: configListValueFrom(viperInst, keyPodmanOptionsRun)},
 	}, nil
 }

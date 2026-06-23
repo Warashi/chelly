@@ -51,6 +51,7 @@ type RunConfig struct {
 	Workdir            string
 	AdditionalMounts   []string
 	ContainerSetupCmds []string
+	InheritEnv         []string
 	PodmanOptions      PodmanOptions
 }
 
@@ -92,6 +93,10 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string) []str
 
 	for _, mount := range cfg.AdditionalMounts {
 		args = append(args, "--volume", mount)
+	}
+
+	for _, name := range cfg.InheritEnv {
+		args = append(args, "--env", name)
 	}
 
 	args = append(args, "--workdir", cfg.Workdir)

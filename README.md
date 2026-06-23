@@ -40,6 +40,7 @@ chelly run -- git --version
 ```sh
 chelly config list
 chelly config set container_cmd podman
+chelly config set inherit_env SSH_AUTH_SOCK,GITHUB_TOKEN
 chelly config get container_cmd
 ```
 
