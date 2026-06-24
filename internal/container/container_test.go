@@ -40,6 +40,9 @@ const (
 	testConfigHome         = "/config/chelly"
 	testWorkDir            = "/current/dir"
 	testWorkDirMount       = "/current/dir:/current/dir"
+	testCommonParent       = "/repo"
+	testCommonParentMount  = "/repo:/repo"
+	testHostMount          = "/host:/cont"
 	testWorkspace          = "/workspace"
 	testSetupCmd           = "echo setup"
 	testSetupCmd2          = "echo setup2"
@@ -152,6 +155,55 @@ func TestRunArgs_AdditionalMounts(t *testing.T) {
 		flagVolume, testWorkDirMount,
 		flagVolume, "/host1:/cont1",
 		flagVolume, "/host2:/cont2",
+		flagWorkdir, testWorkDir,
+		container.ImageName,
+		"ls",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("RunArgs: got %v, want %v", got, want)
+	}
+}
+
+func TestRunArgs_AutoMounts(t *testing.T) {
+	t.Parallel()
+
+	cfg := baseRunConfig()
+	cfg.AdditionalMounts = []string{testHostMount}
+
+	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"}, testCommonParent)
+	want := []string{
+		cmdRun, flagRM,
+		flagVolume, testWorkDirMount,
+		flagVolume, testCommonParentMount,
+		flagVolume, testHostMount,
+		flagWorkdir, testWorkDir,
+		container.ImageName,
+		"ls",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("RunArgs: got %v, want %v", got, want)
+	}
+}
+
+func TestRunArgs_DeduplicatesMounts(t *testing.T) {
+	t.Parallel()
+
+	cfg := baseRunConfig()
+	cfg.AdditionalMounts = []string{
+		testCommonParentMount,
+		testWorkDirMount,
+		testHostMount,
+		testHostMount,
+	}
+
+	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"}, testCommonParent)
+	want := []string{
+		cmdRun, flagRM,
+		flagVolume, testWorkDirMount,
+		flagVolume, testCommonParentMount,
+		flagVolume, testHostMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
 		"ls",

@@ -78,7 +78,7 @@ func IsTTY(f *os.File) bool {
 }
 
 // RunArgs returns the argument slice for the container run command.
-func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string) []string {
+func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string, autoMounts ...string) []string {
 	args := []string{"run", "--rm"}
 
 	if isTTY {
@@ -89,10 +89,15 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string) []str
 		args = append(args, cfg.PodmanOptions.Run...)
 	}
 
-	args = append(args, "--volume", workDir+":"+workDir)
+	seenMounts := map[string]struct{}{}
+	args = appendMount(args, seenMounts, workDir+":"+workDir)
+
+	for _, mount := range autoMounts {
+		args = appendMount(args, seenMounts, mount+":"+mount)
+	}
 
 	for _, mount := range cfg.AdditionalMounts {
-		args = append(args, "--volume", mount)
+		args = appendMount(args, seenMounts, mount)
 	}
 
 	for _, name := range cfg.InheritEnv {
@@ -115,6 +120,16 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string) []str
 	}
 
 	return args
+}
+
+func appendMount(args []string, seen map[string]struct{}, mount string) []string {
+	if _, ok := seen[mount]; ok {
+		return args
+	}
+
+	seen[mount] = struct{}{}
+
+	return append(args, "--volume", mount)
 }
 
 func buildSetupScript(cmds []string, userArgs []string) string {

@@ -14,6 +14,7 @@ The implementation is split by feature under `internal`:
 | `internal/cmd`       | Cobra command tree and wiring for `build`, `run`, and `config`     |
 | `internal/config`    | Config struct, loading from file/environment, formatting, updates  |
 | `internal/container` | Container argument construction, TTY detection, command execution  |
+| `internal/git`       | Git metadata resolution for linked worktree-aware runtime mounts   |
 
 ## Config loading
 
@@ -30,8 +31,10 @@ The public `LoadConfig()` resolves the config directory with `DefaultConfigDir()
 Arg-building logic is separated from execution:
 
 - `container.BuildArgs(cfg, noCache)` returns the `docker build ...` argument slice
-- `container.RunArgs(cfg, wd, isTTY, userArgs)` returns the `docker run ...` argument slice
+- `container.RunArgs(cfg, wd, isTTY, userArgs, autoMounts...)` returns the `docker run ...` argument slice
+- `run` passes linked worktree auto-mounts resolved by `internal/git` into `RunArgs`; Git resolution failures produce no auto-mounts
 - `podman_options.run` is inserted only when `container_cmd` resolves to a basename of `podman`
+- Mounts are emitted in current directory, auto-mount, then `additional_mounts` order, with duplicate mount specs removed
 - `inherit_env` is inserted as common `--env NAME` run options before the image name
 
 This makes unit testing straightforward: tests call these functions directly and assert the returned slices without any subprocess mocking.

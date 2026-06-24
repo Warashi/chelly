@@ -19,6 +19,8 @@ Build the chelly container image.
 Run a command inside the chelly container.
 
 - Mounts the current directory at the same path inside the container
+- When run inside a linked Git worktree, also mounts the parent directory of the Git common dir at the same path inside the container
+- If Git metadata cannot be resolved, continues without the linked worktree mount
 - Sets the container workdir to the current directory (configurable)
 - Inherits configured environment variables from the `chelly run` process into the container
 - Detects stdin/stdout TTY and adds `--interactive --tty` automatically

@@ -22,6 +22,7 @@ import (
 
 	"github.com/Warashi/chelly/internal/config"
 	"github.com/Warashi/chelly/internal/container"
+	"github.com/Warashi/chelly/internal/git"
 	"github.com/spf13/cobra"
 )
 
@@ -46,6 +47,11 @@ func newRunCommand() *cobra.Command {
 				return fmt.Errorf("getting working directory: %w", err)
 			}
 
+			autoMounts := []string{}
+			if commonParent, ok := git.LinkedWorktreeCommonParent(currentDir); ok {
+				autoMounts = append(autoMounts, commonParent)
+			}
+
 			tty := container.IsTTY(os.Stdin) && container.IsTTY(os.Stdout)
 			userArgs := container.StripDashDash(args)
 			containerArgs := container.RunArgs(container.RunConfig{
@@ -55,7 +61,7 @@ func newRunCommand() *cobra.Command {
 				ContainerSetupCmds: cfg.ContainerSetupCmds,
 				InheritEnv:         cfg.InheritEnv,
 				PodmanOptions:      container.PodmanOptions{Run: cfg.PodmanOptions.Run},
-			}, currentDir, tty, userArgs)
+			}, currentDir, tty, userArgs, autoMounts...)
 
 			return container.Exec(cfg.ContainerCmd, containerArgs)
 		},
