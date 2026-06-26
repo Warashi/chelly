@@ -28,4 +28,15 @@ buildGoApplication {
       ]
     ) ./.;
   };
+
+  nativeBuildInputs = [
+    pkgs.installShellFiles
+  ];
+
+  postInstall = ''
+    installShellCompletion --cmd chelly \
+      --bash <($out/bin/chelly completion bash) \
+      --fish <($out/bin/chelly completion fish) \
+      --zsh <($out/bin/chelly completion zsh)
+  '';
 }
