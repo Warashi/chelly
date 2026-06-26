@@ -105,7 +105,8 @@
               gomod2nix
               # keep-sorted end
             ]
-            ++ pkgs.lib.optional pkgs.stdenv.isLinux pkgs.gcc;
+            ++ pkgs.lib.optional pkgs.stdenv.isLinux pkgs.gcc
+            ++ config.pre-commit.settings.enabledPackages;
           packagesFrom = [
             goEnv
           ];
