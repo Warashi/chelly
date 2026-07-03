@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -30,6 +31,8 @@ import (
 const (
 	testContainerCmdPodman = "podman"
 	testWorkspace          = "/workspace"
+	testExtraArg           = "--userns=keep-id"
+	cmdConfig              = "config"
 )
 
 func TestConfigGetCommand(t *testing.T) {
@@ -43,7 +46,7 @@ func TestConfigGetCommand(t *testing.T) {
 	rootCmd := cmd.NewRootCommand()
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
-	rootCmd.SetArgs([]string{"config", "get", "container_cmd"})
+	rootCmd.SetArgs([]string{cmdConfig, "get", "container_cmd"})
 
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -63,7 +66,7 @@ func TestConfigSetCommandUsesDefaultConfigDir(t *testing.T) {
 	rootCmd := cmd.NewRootCommand()
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
-	rootCmd.SetArgs([]string{"config", "set", "workdir", testWorkspace})
+	rootCmd.SetArgs([]string{cmdConfig, "set", "workdir", testWorkspace})
 
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -78,6 +81,51 @@ func TestConfigSetCommandUsesDefaultConfigDir(t *testing.T) {
 
 	if cfg.Workdir != testWorkspace {
 		t.Errorf("Workdir: got %q, want %q", cfg.Workdir, testWorkspace)
+	}
+}
+
+func TestConfigSetCommandRuntimeOptionsBuild(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+
+	var out bytes.Buffer
+
+	rootCmd := cmd.NewRootCommand()
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
+	rootCmd.SetArgs([]string{cmdConfig, "set", "--", "runtime_options.podman.build", testExtraArg})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	chellyDir := filepath.Join(configHome, "chelly")
+
+	rootCmd = cmd.NewRootCommand()
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
+	rootCmd.SetArgs([]string{cmdConfig, "get", "runtime_options.podman.build"})
+
+	out.Reset()
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if got := out.String(); got != testExtraArg+"\n" {
+		t.Errorf("output: got %q, want %q", got, testExtraArg+"\n")
+	}
+
+	cfg, err := config.LoadConfigFrom(chellyDir)
+	if err != nil {
+		t.Fatalf("LoadConfigFrom: %v", err)
+	}
+
+	want := []config.RuntimeOption{
+		{Runtime: "podman", Subcommand: config.SubcommandBuild, Args: []string{testExtraArg}},
+	}
+	if !reflect.DeepEqual(cfg.RuntimeOptions, want) {
+		t.Errorf("RuntimeOptions: got %v, want %v", cfg.RuntimeOptions, want)
 	}
 }
 
