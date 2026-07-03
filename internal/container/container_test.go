@@ -28,9 +28,8 @@ import (
 )
 
 type (
-	BuildConfig   = container.BuildConfig
-	RunConfig     = container.RunConfig
-	PodmanOptions = container.PodmanOptions
+	BuildConfig = container.BuildConfig
+	RunConfig   = container.RunConfig
 )
 
 const (
@@ -48,8 +47,8 @@ const (
 	testSetupCmd2          = "echo setup2"
 	testInheritEnv         = "SSH_AUTH_SOCK"
 	testInheritEnv2        = "GITHUB_TOKEN"
-	testPodmanRunOption    = "--userns=keep-id"
-	testPodmanRunOption2   = "--security-opt=label=disable"
+	testExtraArg           = "--userns=keep-id"
+	testExtraArg2          = "--security-opt=label=disable"
 
 	flagRM          = "--rm"
 	flagVolume      = "--volume"
@@ -57,6 +56,7 @@ const (
 	flagWorkdir     = "--workdir"
 	flagInteractive = "--interactive"
 	flagTTY         = "--tty"
+	flagTag         = "--tag"
 	shellSh         = "sh"
 	shellFlagLC     = "-lc"
 	cmdRun          = "run"
@@ -68,6 +68,7 @@ const (
 func baseBuildConfig() BuildConfig {
 	return BuildConfig{
 		ConfigHome: testConfigHome,
+		ExtraArgs:  nil,
 	}
 }
 
@@ -78,7 +79,7 @@ func baseRunConfig() RunConfig {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
-		PodmanOptions:      PodmanOptions{Run: nil},
+		ExtraArgs:          nil,
 	}
 }
 
@@ -87,7 +88,7 @@ func TestBuildArgs_WithoutNoCache(t *testing.T) {
 
 	cfg := baseBuildConfig()
 	got := container.BuildArgs(cfg, false)
-	want := []string{commandBuild, "--tag", container.ImageName, testConfigHome}
+	want := []string{commandBuild, flagTag, container.ImageName, testConfigHome}
 
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("BuildArgs: got %v, want %v", got, want)
@@ -99,7 +100,21 @@ func TestBuildArgs_WithNoCache(t *testing.T) {
 
 	cfg := baseBuildConfig()
 	got := container.BuildArgs(cfg, true)
-	want := []string{commandBuild, "--no-cache", "--tag", container.ImageName, testConfigHome}
+	want := []string{commandBuild, "--no-cache", flagTag, container.ImageName, testConfigHome}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("BuildArgs: got %v, want %v", got, want)
+	}
+}
+
+func TestBuildArgs_WithExtraArgs(t *testing.T) {
+	t.Parallel()
+
+	cfg := baseBuildConfig()
+	cfg.ExtraArgs = []string{testExtraArg, testExtraArg2}
+
+	got := container.BuildArgs(cfg, false)
+	want := []string{commandBuild, testExtraArg, testExtraArg2, flagTag, container.ImageName, testConfigHome}
 
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("BuildArgs: got %v, want %v", got, want)
@@ -214,17 +229,17 @@ func TestRunArgs_DeduplicatesMounts(t *testing.T) {
 	}
 }
 
-func TestRunArgs_PodmanOptionsRun(t *testing.T) {
+func TestRunArgs_ExtraArgs(t *testing.T) {
 	t.Parallel()
 
 	cfg := baseRunConfig()
 	cfg.ContainerCmd = testContainerCmdPodman
-	cfg.PodmanOptions.Run = []string{testPodmanRunOption, testPodmanRunOption2}
+	cfg.ExtraArgs = []string{testExtraArg, testExtraArg2}
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
 		cmdRun, flagRM,
-		testPodmanRunOption, testPodmanRunOption2,
+		testExtraArg, testExtraArg2,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
@@ -258,12 +273,12 @@ func TestRunArgs_InheritEnv(t *testing.T) {
 	}
 }
 
-func TestRunArgs_InheritEnvAfterPodmanOptions(t *testing.T) {
+func TestRunArgs_InheritEnvAfterExtraArgs(t *testing.T) {
 	t.Parallel()
 
 	cfg := baseRunConfig()
 	cfg.ContainerCmd = testContainerCmdPodman
-	cfg.PodmanOptions.Run = []string{"--env", "SSH_AUTH_SOCK=/tmp/socket"}
+	cfg.ExtraArgs = []string{"--env", "SSH_AUTH_SOCK=/tmp/socket"}
 	cfg.InheritEnv = []string{testInheritEnv}
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
@@ -282,17 +297,17 @@ func TestRunArgs_InheritEnvAfterPodmanOptions(t *testing.T) {
 	}
 }
 
-func TestRunArgs_PodmanOptionsRunWithPath(t *testing.T) {
+func TestRunArgs_ExtraArgsWithPath(t *testing.T) {
 	t.Parallel()
 
 	cfg := baseRunConfig()
 	cfg.ContainerCmd = "/usr/bin/podman"
-	cfg.PodmanOptions.Run = []string{testPodmanRunOption}
+	cfg.ExtraArgs = []string{testExtraArg}
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
 		cmdRun, flagRM,
-		testPodmanRunOption,
+		testExtraArg,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
@@ -304,11 +319,10 @@ func TestRunArgs_PodmanOptionsRunWithPath(t *testing.T) {
 	}
 }
 
-func TestRunArgs_PodmanOptionsRunIgnoredForDocker(t *testing.T) {
+func TestRunArgs_NoExtraArgsWhenUnset(t *testing.T) {
 	t.Parallel()
 
 	cfg := baseRunConfig()
-	cfg.PodmanOptions.Run = []string{testPodmanRunOption}
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
@@ -435,13 +449,13 @@ func TestRunArgs_AllOptions(t *testing.T) {
 		AdditionalMounts:   []string{"/home/user/.ssh:/home/user/.ssh"},
 		ContainerSetupCmds: []string{"source /etc/profile"},
 		InheritEnv:         []string{testInheritEnv},
-		PodmanOptions:      PodmanOptions{Run: []string{testPodmanRunOption}},
+		ExtraArgs:          []string{testExtraArg},
 	}
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{cmdBash, "-c", "echo hi"})
 	want := []string{
 		cmdRun, flagRM,
-		testPodmanRunOption,
+		testExtraArg,
 		flagVolume, testWorkDirMount,
 		flagVolume, "/home/user/.ssh:/home/user/.ssh",
 		flagEnv, testInheritEnv,

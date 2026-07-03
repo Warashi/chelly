@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"golang.org/x/sys/unix"
@@ -35,14 +34,10 @@ const (
 	ImageName = "chelly:latest"
 )
 
-// PodmanOptions holds Podman-specific container options.
-type PodmanOptions struct {
-	Run []string
-}
-
 // BuildConfig holds configuration used by the container image build.
 type BuildConfig struct {
 	ConfigHome string
+	ExtraArgs  []string
 }
 
 // RunConfig holds configuration used by container execution.
@@ -52,7 +47,7 @@ type RunConfig struct {
 	AdditionalMounts   []string
 	ContainerSetupCmds []string
 	InheritEnv         []string
-	PodmanOptions      PodmanOptions
+	ExtraArgs          []string
 }
 
 // BuildArgs returns the argument slice for the container build command.
@@ -62,6 +57,7 @@ func BuildArgs(cfg BuildConfig, noCacheFlag bool) []string {
 		args = append(args, "--no-cache")
 	}
 
+	args = append(args, cfg.ExtraArgs...)
 	args = append(args, "--tag", ImageName, cfg.ConfigHome)
 
 	return args
@@ -85,9 +81,7 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string, autoM
 		args = append(args, "--interactive", "--tty")
 	}
 
-	if filepath.Base(cfg.ContainerCmd) == "podman" {
-		args = append(args, cfg.PodmanOptions.Run...)
-	}
+	args = append(args, cfg.ExtraArgs...)
 
 	seenMounts := map[string]struct{}{}
 	args = appendMount(args, seenMounts, workDir+":"+workDir)
