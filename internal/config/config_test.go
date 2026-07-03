@@ -17,6 +17,7 @@ limitations under the License.
 package config_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -766,4 +767,82 @@ func TestResolveRuntimeArgs_EnvVarOverridesConfig(t *testing.T) {
 	t.Setenv("CHELLY_RUNTIME_OPTIONS_PODMAN_RUN", testExtraArg2)
 
 	assertStringSlice(t, "run", config.ResolveRuntimeArgs(cfg, config.SubcommandRun), []string{testExtraArg2})
+}
+
+func writeEnvFile(t *testing.T, dir, name string) string {
+	t.Helper()
+
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte("FOO=bar\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	return path
+}
+
+func TestResolveEnvFiles_AbsoluteAndRelative(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	absFile := writeEnvFile(t, dir, "abs.env")
+	writeEnvFile(t, dir, "rel.env")
+
+	resolved, skipped, err := config.ResolveEnvFiles([]string{absFile, "rel.env"}, dir)
+	if err != nil {
+		t.Fatalf("ResolveEnvFiles: %v", err)
+	}
+
+	assertStringSlice(t, "resolved", resolved, []string{absFile, filepath.Join(dir, "rel.env")})
+	assertStringSlice(t, "skipped", skipped, nil)
+}
+
+func TestResolveEnvFiles_MissingRelativeIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeEnvFile(t, dir, "present.env")
+
+	resolved, skipped, err := config.ResolveEnvFiles([]string{"missing.env", "present.env"}, dir)
+	if err != nil {
+		t.Fatalf("ResolveEnvFiles: %v", err)
+	}
+
+	assertStringSlice(t, "resolved", resolved, []string{filepath.Join(dir, "present.env")})
+	assertStringSlice(t, "skipped", skipped, []string{"missing.env"})
+}
+
+func TestResolveEnvFiles_MissingAbsoluteIsError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	_, _, err := config.ResolveEnvFiles([]string{filepath.Join(dir, "missing.env")}, dir)
+	if !errors.Is(err, config.ErrEnvFileNotFound) {
+		t.Fatalf("got %v, want ErrEnvFileNotFound", err)
+	}
+}
+
+func TestResolveEnvFiles_TildeExpansion(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	writeEnvFile(t, home, "home.env")
+
+	resolved, skipped, err := config.ResolveEnvFiles([]string{"~/home.env"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveEnvFiles: %v", err)
+	}
+
+	assertStringSlice(t, "resolved", resolved, []string{filepath.Join(home, "home.env")})
+	assertStringSlice(t, "skipped", skipped, nil)
+}
+
+func TestResolveEnvFiles_MissingTildePathIsError(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	_, _, err := config.ResolveEnvFiles([]string{"~/missing.env"}, t.TempDir())
+	if !errors.Is(err, config.ErrEnvFileNotFound) {
+		t.Fatalf("got %v, want ErrEnvFileNotFound", err)
+	}
 }

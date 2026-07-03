@@ -54,6 +54,9 @@ var ErrUnknownConfigKey = errors.New("unknown config key")
 // ErrInvalidEnvName is returned when inherit_env contains an invalid environment variable name.
 var ErrInvalidEnvName = errors.New("invalid environment variable name")
 
+// ErrEnvFileNotFound is returned when an env_files entry with an absolute path does not exist.
+var ErrEnvFileNotFound = errors.New("env file not found")
+
 // ErrInvalidSubcommand is returned when a runtime_options entry names an unsupported subcommand.
 var ErrInvalidSubcommand = errors.New("invalid runtime_options subcommand")
 
@@ -327,6 +330,55 @@ func ValidateInheritEnv(names []string) error {
 	}
 
 	return nil
+}
+
+// ResolveEnvFiles resolves env_files entries into absolute paths to pass to the
+// container runtime.
+//
+// Entries starting with "~" are expanded to the user home directory and then
+// treated as absolute paths. Absolute paths that do not exist cause an error.
+// Relative paths are resolved against baseDir; missing ones are skipped and
+// returned in the second slice so the caller can warn about them.
+func ResolveEnvFiles(entries []string, baseDir string) ([]string, []string, error) {
+	var resolved, skipped []string
+
+	for _, entry := range entries {
+		path, wasRelative, err := expandEnvFilePath(entry, baseDir)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if _, err := os.Stat(path); err != nil {
+			if wasRelative && errors.Is(err, os.ErrNotExist) {
+				skipped = append(skipped, entry)
+
+				continue
+			}
+
+			return nil, nil, fmt.Errorf("%w %q: %w", ErrEnvFileNotFound, entry, err)
+		}
+
+		resolved = append(resolved, path)
+	}
+
+	return resolved, skipped, nil
+}
+
+func expandEnvFilePath(entry, baseDir string) (string, bool, error) {
+	if entry == "~" || strings.HasPrefix(entry, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", false, fmt.Errorf("expanding %q: %w", entry, err)
+		}
+
+		return filepath.Join(home, strings.TrimPrefix(entry, "~")), false, nil
+	}
+
+	if filepath.IsAbs(entry) {
+		return entry, false, nil
+	}
+
+	return filepath.Join(baseDir, entry), true, nil
 }
 
 // ValidateRuntimeOptions returns an error when opts contains an entry with an
