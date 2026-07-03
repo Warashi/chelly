@@ -36,6 +36,7 @@ Arg-building logic is separated from execution:
 - `container.RunConfig`/`BuildConfig.ExtraArgs` are inserted unconditionally by the `container` package; resolving *which* arguments apply for the current runtime and subcommand is the caller's responsibility (see `config.ResolveRuntimeArgs` below), so `internal/container` has no knowledge of specific runtimes
 - Mounts are emitted in current directory, auto-mount, then `additional_mounts` order, with duplicate mount specs removed
 - `inherit_env` is inserted as common `--env NAME` run options before the image name
+- `env_files` entries are resolved by `config.ResolveEnvFiles` in `run` (tilde expansion, absolute paths must exist, missing relative paths are skipped with a warning) and inserted as `--env-file PATH` run options before the `inherit_env` flags; duplicate-variable merging is delegated to the runtime
 
 This makes unit testing straightforward: tests call these functions directly and assert the returned slices without any subprocess mocking.
 
