@@ -37,7 +37,14 @@ func newBuildCommand() *cobra.Command {
 				return fmt.Errorf("loading config: %w", err)
 			}
 
-			args := container.BuildArgs(container.BuildConfig{ConfigHome: cfg.ConfigHome}, noCache)
+			if err := config.ValidateRuntimeOptions(cfg.RuntimeOptions); err != nil {
+				return fmt.Errorf("validating runtime_options: %w", err)
+			}
+
+			args := container.BuildArgs(container.BuildConfig{
+				ConfigHome: cfg.ConfigHome,
+				ExtraArgs:  config.ResolveRuntimeArgs(cfg, config.SubcommandBuild),
+			}, noCache)
 
 			return container.Run(cobraCmd.Context(), cfg.ContainerCmd, args)
 		},
