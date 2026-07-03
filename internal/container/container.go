@@ -47,6 +47,7 @@ type RunConfig struct {
 	AdditionalMounts   []string
 	ContainerSetupCmds []string
 	InheritEnv         []string
+	EnvFiles           []string
 	ExtraArgs          []string
 }
 
@@ -92,6 +93,10 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string, autoM
 
 	for _, mount := range cfg.AdditionalMounts {
 		args = appendMount(args, seenMounts, mount)
+	}
+
+	for _, file := range cfg.EnvFiles {
+		args = append(args, "--env-file", file)
 	}
 
 	for _, name := range cfg.InheritEnv {

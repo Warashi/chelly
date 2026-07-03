@@ -47,12 +47,15 @@ const (
 	testSetupCmd2          = "echo setup2"
 	testInheritEnv         = "SSH_AUTH_SOCK"
 	testInheritEnv2        = "GITHUB_TOKEN"
+	testEnvFile            = "/project/.env"
+	testEnvFile2           = "/project/.env.local"
 	testExtraArg           = "--userns=keep-id"
 	testExtraArg2          = "--security-opt=label=disable"
 
 	flagRM          = "--rm"
 	flagVolume      = "--volume"
 	flagEnv         = "--env"
+	flagEnvFile     = "--env-file"
 	flagWorkdir     = "--workdir"
 	flagInteractive = "--interactive"
 	flagTTY         = "--tty"
@@ -79,6 +82,7 @@ func baseRunConfig() RunConfig {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
+		EnvFiles:           nil,
 		ExtraArgs:          nil,
 	}
 }
@@ -273,6 +277,30 @@ func TestRunArgs_InheritEnv(t *testing.T) {
 	}
 }
 
+func TestRunArgs_EnvFiles(t *testing.T) {
+	t.Parallel()
+
+	cfg := baseRunConfig()
+	cfg.EnvFiles = []string{testEnvFile, testEnvFile2}
+	cfg.InheritEnv = []string{testInheritEnv}
+
+	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
+	want := []string{
+		cmdRun, flagRM,
+		flagVolume, testWorkDirMount,
+		flagEnvFile, testEnvFile,
+		flagEnvFile, testEnvFile2,
+		flagEnv, testInheritEnv,
+		flagWorkdir, testWorkDir,
+		container.ImageName,
+		"ls",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("RunArgs: got %v, want %v", got, want)
+	}
+}
+
 func TestRunArgs_InheritEnvAfterExtraArgs(t *testing.T) {
 	t.Parallel()
 
@@ -449,6 +477,7 @@ func TestRunArgs_AllOptions(t *testing.T) {
 		AdditionalMounts:   []string{"/home/user/.ssh:/home/user/.ssh"},
 		ContainerSetupCmds: []string{"source /etc/profile"},
 		InheritEnv:         []string{testInheritEnv},
+		EnvFiles:           []string{testEnvFile},
 		ExtraArgs:          []string{testExtraArg},
 	}
 
@@ -458,6 +487,7 @@ func TestRunArgs_AllOptions(t *testing.T) {
 		testExtraArg,
 		flagVolume, testWorkDirMount,
 		flagVolume, "/home/user/.ssh:/home/user/.ssh",
+		flagEnvFile, testEnvFile,
 		flagEnv, testInheritEnv,
 		flagWorkdir, testWorkspace,
 		container.ImageName,
