@@ -37,6 +37,7 @@ const (
 	keyAdditionalMounts   = "additional_mounts"
 	keyContainerSetupCmds = "container_setup_cmds"
 	keyInheritEnv         = "inherit_env"
+	keyEnvFiles           = "env_files"
 	keyRuntimeOptions     = "runtime_options"
 )
 
@@ -85,6 +86,7 @@ type Config struct {
 	AdditionalMounts   []string        `toml:"additional_mounts"`
 	ContainerSetupCmds []string        `toml:"container_setup_cmds"`
 	InheritEnv         []string        `toml:"inherit_env"`
+	EnvFiles           []string        `toml:"env_files"`
 	RuntimeOptions     []RuntimeOption `toml:"runtime_options"`
 }
 
@@ -97,6 +99,7 @@ var validConfigKeys = []string{
 	keyAdditionalMounts,
 	keyContainerSetupCmds,
 	keyInheritEnv,
+	keyEnvFiles,
 }
 
 // FormatConfig serializes cfg to a TOML string representing the effective configuration.
@@ -129,6 +132,8 @@ func GetConfigValue(cfg Config, key string) (string, error) {
 		return strings.Join(cfg.ContainerSetupCmds, ","), nil
 	case keyInheritEnv:
 		return strings.Join(cfg.InheritEnv, ","), nil
+	case keyEnvFiles:
+		return strings.Join(cfg.EnvFiles, ","), nil
 	default:
 		return "", fmt.Errorf("%w %q: valid keys are %s", ErrUnknownConfigKey, key, strings.Join(validConfigKeys, ", "))
 	}
@@ -193,7 +198,7 @@ func applyConfigValue(data map[string]any, key, value string) {
 	var configValue any
 
 	switch key {
-	case keyAdditionalMounts, keyContainerSetupCmds, keyInheritEnv:
+	case keyAdditionalMounts, keyContainerSetupCmds, keyInheritEnv, keyEnvFiles:
 		configValue = configListValue(value)
 	default:
 		configValue = value
@@ -420,6 +425,7 @@ func LoadConfigFrom(configDir string) (Config, error) {
 	viperInst.SetDefault("additional_mounts", []string{})
 	viperInst.SetDefault("container_setup_cmds", []string{})
 	viperInst.SetDefault("inherit_env", []string{})
+	viperInst.SetDefault("env_files", []string{})
 
 	if err := viperInst.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
@@ -450,6 +456,7 @@ func LoadConfigFrom(configDir string) (Config, error) {
 		AdditionalMounts:   configListValueFrom(viperInst, keyAdditionalMounts),
 		ContainerSetupCmds: configListValueFrom(viperInst, keyContainerSetupCmds),
 		InheritEnv:         configListValueFrom(viperInst, keyInheritEnv),
+		EnvFiles:           configListValueFrom(viperInst, keyEnvFiles),
 		RuntimeOptions:     runtimeOptions,
 	}, nil
 }

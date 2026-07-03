@@ -39,6 +39,8 @@ const (
 	testMountB             = "/b:/b"
 	testInheritEnv         = "SSH_AUTH_SOCK"
 	testInheritEnv2        = "GITHUB_TOKEN"
+	testEnvFile            = ".env"
+	testEnvFile2           = "/etc/chelly/extra.env"
 	testExtraArg           = "--userns=keep-id"
 	testExtraArg2          = "--security-opt=label=disable"
 	testRuntimePodman      = "podman"
@@ -66,6 +68,7 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 		AdditionalMounts:   []string{testMountA},
 		ContainerSetupCmds: []string{testSetupCmd},
 		InheritEnv:         []string{testInheritEnv},
+		EnvFiles:           []string{testEnvFile},
 		RuntimeOptions: []config.RuntimeOption{
 			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
 		},
@@ -96,6 +99,7 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 	assertStringSlice(t, "AdditionalMounts", roundTripped.AdditionalMounts, original.AdditionalMounts)
 	assertStringSlice(t, "ContainerSetupCmds", roundTripped.ContainerSetupCmds, original.ContainerSetupCmds)
 	assertStringSlice(t, "InheritEnv", roundTripped.InheritEnv, original.InheritEnv)
+	assertStringSlice(t, "EnvFiles", roundTripped.EnvFiles, original.EnvFiles)
 
 	if !reflect.DeepEqual(roundTripped.RuntimeOptions, original.RuntimeOptions) {
 		t.Errorf("RuntimeOptions: got %v, want %v", roundTripped.RuntimeOptions, original.RuntimeOptions)
@@ -112,6 +116,7 @@ func TestGetConfigValue(t *testing.T) {
 		AdditionalMounts:   []string{testMountA, testMountB},
 		ContainerSetupCmds: []string{testSetupCmd, testSetupCmd2},
 		InheritEnv:         []string{testInheritEnv, testInheritEnv2},
+		EnvFiles:           []string{testEnvFile, testEnvFile2},
 		RuntimeOptions: []config.RuntimeOption{
 			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg, testExtraArg2}},
 		},
@@ -127,6 +132,7 @@ func TestGetConfigValue(t *testing.T) {
 		{"additional_mounts", testMountA + "," + testMountB},
 		{"container_setup_cmds", testSetupCmd + "," + testSetupCmd2},
 		{"inherit_env", testInheritEnv + "," + testInheritEnv2},
+		{"env_files", testEnvFile + "," + testEnvFile2},
 		{keyRuntimeOptionsRun, testExtraArg + "," + testExtraArg2},
 	}
 
@@ -156,6 +162,7 @@ func TestGetConfigValue_RuntimeOptionsUnsetReturnsEmpty(t *testing.T) {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
+		EnvFiles:           nil,
 		RuntimeOptions:     nil,
 	}, keyRuntimeOptionsBuild)
 	if err != nil {
@@ -177,6 +184,7 @@ func TestGetConfigValue_RuntimeOptionsInvalidSubcommand(t *testing.T) {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
+		EnvFiles:           nil,
 		RuntimeOptions:     nil,
 	}, "runtime_options.podman.exec")
 	if err == nil {
@@ -198,6 +206,7 @@ func TestGetConfigValue_UnknownKey(t *testing.T) {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
+		EnvFiles:           nil,
 		RuntimeOptions:     nil,
 	}, "nonexistent_key")
 	if err == nil {
@@ -404,6 +413,23 @@ func TestSetConfigValue_InheritEnv(t *testing.T) {
 	assertStringSlice(t, "InheritEnv", cfg.InheritEnv, []string{testInheritEnv, testInheritEnv2})
 }
 
+func TestSetConfigValue_EnvFiles(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	if err := config.SetConfigValue(dir, "env_files", testEnvFile+","+testEnvFile2); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	cfg, err := config.LoadConfigFrom(dir)
+	if err != nil {
+		t.Fatalf("LoadConfigFrom: %v", err)
+	}
+
+	assertStringSlice(t, "EnvFiles", cfg.EnvFiles, []string{testEnvFile, testEnvFile2})
+}
+
 func TestSetConfigValue_UnknownKey(t *testing.T) {
 	t.Parallel()
 
@@ -457,6 +483,10 @@ func TestLoadConfigFrom_Defaults(t *testing.T) {
 		t.Errorf("InheritEnv: got %v, want empty", cfg.InheritEnv)
 	}
 
+	if len(cfg.EnvFiles) != 0 {
+		t.Errorf("EnvFiles: got %v, want empty", cfg.EnvFiles)
+	}
+
 	if len(cfg.RuntimeOptions) != 0 {
 		t.Errorf("RuntimeOptions: got %v, want empty", cfg.RuntimeOptions)
 	}
@@ -477,6 +507,7 @@ workdir = "/workspace"
 additional_mounts = ["/host:/container"]
 container_setup_cmds = ["echo setup"]
 inherit_env = ["SSH_AUTH_SOCK"]
+env_files = [".env"]
 
 [[runtime_options]]
 runtime = "podman"
@@ -504,6 +535,7 @@ args = ["--userns=keep-id"]
 	assertStringSlice(t, "AdditionalMounts", cfg.AdditionalMounts, []string{"/host:/container"})
 	assertStringSlice(t, "ContainerSetupCmds", cfg.ContainerSetupCmds, []string{testSetupCmd})
 	assertStringSlice(t, "InheritEnv", cfg.InheritEnv, []string{testInheritEnv})
+	assertStringSlice(t, "EnvFiles", cfg.EnvFiles, []string{testEnvFile})
 
 	wantRuntimeOptions := []config.RuntimeOption{
 		{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
@@ -545,6 +577,7 @@ workdir = "/config-file-workdir"
 additional_mounts = ["/config-file:/config-file"]
 container_setup_cmds = ["echo config-file"]
 inherit_env = ["CONFIG_FILE_TOKEN"]
+env_files = ["config-file.env"]
 `)
 
 	t.Setenv("CHELLY_CONTAINER_CMD", testContainerCmdPodman)
@@ -553,6 +586,7 @@ inherit_env = ["CONFIG_FILE_TOKEN"]
 	t.Setenv("CHELLY_ADDITIONAL_MOUNTS", "/env-host:/env-container")
 	t.Setenv("CHELLY_CONTAINER_SETUP_CMDS", "echo-env")
 	t.Setenv("CHELLY_INHERIT_ENV", testInheritEnv+","+testInheritEnv2)
+	t.Setenv("CHELLY_ENV_FILES", testEnvFile+","+testEnvFile2)
 
 	cfg, err := config.LoadConfigFrom(dir)
 	if err != nil {
@@ -574,6 +608,7 @@ inherit_env = ["CONFIG_FILE_TOKEN"]
 	assertStringSlice(t, "AdditionalMounts", cfg.AdditionalMounts, []string{"/env-host:/env-container"})
 	assertStringSlice(t, "ContainerSetupCmds", cfg.ContainerSetupCmds, []string{"echo-env"})
 	assertStringSlice(t, "InheritEnv", cfg.InheritEnv, []string{testInheritEnv, testInheritEnv2})
+	assertStringSlice(t, "EnvFiles", cfg.EnvFiles, []string{testEnvFile, testEnvFile2})
 }
 
 func TestValidateInheritEnv(t *testing.T) {
@@ -666,6 +701,7 @@ func TestResolveRuntimeArgs(t *testing.T) {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
+		EnvFiles:           nil,
 		RuntimeOptions: []config.RuntimeOption{
 			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
 		},
@@ -685,6 +721,7 @@ func TestResolveRuntimeArgs_UsesContainerCmdBasename(t *testing.T) {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
+		EnvFiles:           nil,
 		RuntimeOptions: []config.RuntimeOption{
 			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
 		},
@@ -703,6 +740,7 @@ func TestResolveRuntimeArgs_IgnoresOtherRuntime(t *testing.T) {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
+		EnvFiles:           nil,
 		RuntimeOptions: []config.RuntimeOption{
 			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
 		},
@@ -719,6 +757,7 @@ func TestResolveRuntimeArgs_EnvVarOverridesConfig(t *testing.T) {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
+		EnvFiles:           nil,
 		RuntimeOptions: []config.RuntimeOption{
 			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
 		},
