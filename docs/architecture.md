@@ -33,11 +33,27 @@ Arg-building logic is separated from execution:
 - `container.BuildArgs(cfg, noCache)` returns the `docker build ...` argument slice
 - `container.RunArgs(cfg, wd, isTTY, userArgs, autoMounts...)` returns the `docker run ...` argument slice
 - `run` passes linked worktree auto-mounts resolved by `internal/git` into `RunArgs`; Git resolution failures produce no auto-mounts
-- `podman_options.run` is inserted only when `container_cmd` resolves to a basename of `podman`
+- `container.RunConfig`/`BuildConfig.ExtraArgs` are inserted unconditionally by the `container` package; resolving *which* arguments apply for the current runtime and subcommand is the caller's responsibility (see `config.ResolveRuntimeArgs` below), so `internal/container` has no knowledge of specific runtimes
 - Mounts are emitted in current directory, auto-mount, then `additional_mounts` order, with duplicate mount specs removed
 - `inherit_env` is inserted as common `--env NAME` run options before the image name
 
 This makes unit testing straightforward: tests call these functions directly and assert the returned slices without any subprocess mocking.
+
+## Runtime-specific extra arguments
+
+`Config.RuntimeOptions` holds a list of `{Runtime, Subcommand, Args}` entries
+(TOML: `[[runtime_options]]`). `config.ResolveRuntimeArgs(cfg, subcommand)`
+resolves the `Args` for the current `container_cmd`'s basename and the given
+subcommand (`config.SubcommandRun` or `config.SubcommandBuild`):
+
+1. `CHELLY_RUNTIME_OPTIONS_<RUNTIME>_<SUBCOMMAND>` environment variable, if set
+2. Otherwise, the first `RuntimeOptions` entry matching `Runtime` and `Subcommand`
+
+`run` and `build` each call `config.ValidateRuntimeOptions(cfg.RuntimeOptions)`
+before use, rejecting unsupported subcommands and duplicate `Runtime`+`Subcommand`
+entries. Because resolution is keyed purely by data (`container_cmd` basename and
+subcommand name), adding a new runtime or subcommand requires no changes to
+`internal/container`.
 
 ## Execution semantics
 

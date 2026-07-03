@@ -36,15 +36,15 @@ Print all current effective configuration values in TOML format.
 
 Print the effective value of a single configuration key.
 
-- `key`: one of `container_cmd`, `config_home`, `workdir`, `additional_mounts`, `container_setup_cmds`, `inherit_env`, `podman_options.run`
-- For `additional_mounts`, `container_setup_cmds`, `inherit_env`, and `podman_options.run`, prints values as a comma-separated string
+- `key`: one of `container_cmd`, `config_home`, `workdir`, `additional_mounts`, `container_setup_cmds`, `inherit_env`, or `runtime_options.<runtime>.<subcommand>`
+- For `additional_mounts`, `container_setup_cmds`, `inherit_env`, and `runtime_options.<runtime>.<subcommand>`, prints values as a comma-separated string
 
 ### `chelly config set <key> <value>`
 
 Write a key-value pair to `config.toml`.
 
 - Creates the config file and its directory if they do not exist
-- For `additional_mounts`, `container_setup_cmds`, `inherit_env`, and `podman_options.run`, `value` is a comma-separated list
+- For `additional_mounts`, `container_setup_cmds`, `inherit_env`, and `runtime_options.<runtime>.<subcommand>`, `value` is a comma-separated list
 - Environment variable overrides still take precedence when reading back via `list`/`get`
 
 ## Configuration
@@ -61,7 +61,24 @@ Environment variables override config file values.
 | `additional_mounts`    | `CHELLY_ADDITIONAL_MOUNTS`     | (empty)                      | Additional volume mounts (`host:container` format, comma-separated for env var) |
 | `container_setup_cmds` | `CHELLY_CONTAINER_SETUP_CMDS`  | (empty)                      | Shell commands to run inside the container before the main command; multiple commands run in parallel with stdout redirected to stderr |
 | `inherit_env`          | `CHELLY_INHERIT_ENV`           | (empty)                      | Environment variable names inherited from `chelly run` into the container |
-| `podman_options.run`   | `CHELLY_PODMAN_OPTIONS_RUN`    | (empty)                      | Additional `podman run` options used only when the container command is `podman` |
+| `runtime_options`      | `CHELLY_RUNTIME_OPTIONS_<RUNTIME>_<SUBCOMMAND>` | (empty)      | Extra arguments for a specific container runtime and subcommand (see below) |
+
+### `runtime_options`
+
+`runtime_options` is a list of `{runtime, subcommand, args}` entries. Each entry's
+`args` are inserted into the corresponding container runtime invocation only when
+`container_cmd` resolves to a basename matching `runtime`, and the chelly command
+being run maps to `subcommand` (`run` for `chelly run`, `build` for `chelly build`).
+
+- `chelly config get`/`set` address a single entry via the key
+  `runtime_options.<runtime>.<subcommand>` (e.g. `runtime_options.podman.run`),
+  with `value` as a comma-separated list of arguments.
+- The environment variable `CHELLY_RUNTIME_OPTIONS_<RUNTIME>_<SUBCOMMAND>`
+  (uppercased runtime and subcommand) overrides the corresponding config file
+  entry, e.g. `CHELLY_RUNTIME_OPTIONS_PODMAN_RUN`.
+- `subcommand` must be one of `run` or `build`.
+- Duplicate entries for the same `runtime`/`subcommand` pair are rejected when
+  `run`/`build` validate the loaded configuration.
 
 ### Example config file
 
@@ -72,6 +89,8 @@ additional_mounts = ["/home/user/.cache:/home/user/.cache"]
 container_setup_cmds = ["source /etc/profile", "mise activate"]
 inherit_env = ["SSH_AUTH_SOCK", "GITHUB_TOKEN"]
 
-[podman_options]
-run = ["--userns=keep-id"]
+[[runtime_options]]
+runtime = "podman"
+subcommand = "run"
+args = ["--userns=keep-id"]
 ```
