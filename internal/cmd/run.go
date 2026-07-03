@@ -51,6 +51,15 @@ func newRunCommand() *cobra.Command {
 				return fmt.Errorf("getting working directory: %w", err)
 			}
 
+			envFiles, skipped, err := config.ResolveEnvFiles(cfg.EnvFiles, currentDir)
+			if err != nil {
+				return fmt.Errorf("resolving env_files: %w", err)
+			}
+
+			for _, entry := range skipped {
+				fmt.Fprintf(os.Stderr, "chelly: warning: env file %q not found, skipping\n", entry)
+			}
+
 			autoMounts := []string{}
 			if commonParent, ok := git.LinkedWorktreeCommonParent(currentDir); ok {
 				autoMounts = append(autoMounts, commonParent)
@@ -64,7 +73,7 @@ func newRunCommand() *cobra.Command {
 				AdditionalMounts:   cfg.AdditionalMounts,
 				ContainerSetupCmds: cfg.ContainerSetupCmds,
 				InheritEnv:         cfg.InheritEnv,
-				EnvFiles:           nil,
+				EnvFiles:           envFiles,
 				ExtraArgs:          config.ResolveRuntimeArgs(cfg, config.SubcommandRun),
 			}, currentDir, tty, userArgs, autoMounts...)
 

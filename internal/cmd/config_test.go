@@ -33,6 +33,8 @@ const (
 	testWorkspace          = "/workspace"
 	testExtraArg           = "--userns=keep-id"
 	cmdConfig              = "config"
+	cmdConfigGet           = "get"
+	cmdConfigSet           = "set"
 )
 
 func TestConfigGetCommand(t *testing.T) {
@@ -46,7 +48,7 @@ func TestConfigGetCommand(t *testing.T) {
 	rootCmd := cmd.NewRootCommand()
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
-	rootCmd.SetArgs([]string{cmdConfig, "get", "container_cmd"})
+	rootCmd.SetArgs([]string{cmdConfig, cmdConfigGet, "container_cmd"})
 
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -66,7 +68,7 @@ func TestConfigSetCommandUsesDefaultConfigDir(t *testing.T) {
 	rootCmd := cmd.NewRootCommand()
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
-	rootCmd.SetArgs([]string{cmdConfig, "set", "workdir", testWorkspace})
+	rootCmd.SetArgs([]string{cmdConfig, cmdConfigSet, "workdir", testWorkspace})
 
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -84,6 +86,37 @@ func TestConfigSetCommandUsesDefaultConfigDir(t *testing.T) {
 	}
 }
 
+func TestConfigSetGetCommandEnvFiles(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+
+	var out bytes.Buffer
+
+	rootCmd := cmd.NewRootCommand()
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
+	rootCmd.SetArgs([]string{cmdConfig, cmdConfigSet, "env_files", ".env,/etc/chelly/extra.env"})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	rootCmd = cmd.NewRootCommand()
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
+	rootCmd.SetArgs([]string{cmdConfig, cmdConfigGet, "env_files"})
+
+	out.Reset()
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if got, want := out.String(), ".env,/etc/chelly/extra.env\n"; got != want {
+		t.Errorf("output: got %q, want %q", got, want)
+	}
+}
+
 func TestConfigSetCommandRuntimeOptionsBuild(t *testing.T) {
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)
@@ -93,7 +126,7 @@ func TestConfigSetCommandRuntimeOptionsBuild(t *testing.T) {
 	rootCmd := cmd.NewRootCommand()
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
-	rootCmd.SetArgs([]string{cmdConfig, "set", "--", "runtime_options.podman.build", testExtraArg})
+	rootCmd.SetArgs([]string{cmdConfig, cmdConfigSet, "--", "runtime_options.podman.build", testExtraArg})
 
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -104,7 +137,7 @@ func TestConfigSetCommandRuntimeOptionsBuild(t *testing.T) {
 	rootCmd = cmd.NewRootCommand()
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
-	rootCmd.SetArgs([]string{cmdConfig, "get", "runtime_options.podman.build"})
+	rootCmd.SetArgs([]string{cmdConfig, cmdConfigGet, "runtime_options.podman.build"})
 
 	out.Reset()
 
