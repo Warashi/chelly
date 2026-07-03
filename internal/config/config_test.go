@@ -19,6 +19,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -38,8 +39,13 @@ const (
 	testMountB             = "/b:/b"
 	testInheritEnv         = "SSH_AUTH_SOCK"
 	testInheritEnv2        = "GITHUB_TOKEN"
-	testPodmanRunOption    = "--userns=keep-id"
-	testPodmanRunOption2   = "--security-opt=label=disable"
+	testExtraArg           = "--userns=keep-id"
+	testExtraArg2          = "--security-opt=label=disable"
+	testRuntimePodman      = "podman"
+	testRuntimeDocker      = "docker"
+	keyRuntimeOptionsRun   = "runtime_options.podman.run"
+	keyRuntimeOptionsBuild = "runtime_options.podman.build"
+	testCaseNameEmpty      = "empty"
 )
 
 func assertStringSlice(t *testing.T, name string, got, want []string) {
@@ -60,7 +66,9 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 		AdditionalMounts:   []string{testMountA},
 		ContainerSetupCmds: []string{testSetupCmd},
 		InheritEnv:         []string{testInheritEnv},
-		PodmanOptions:      config.PodmanOptions{Run: []string{testPodmanRunOption}},
+		RuntimeOptions: []config.RuntimeOption{
+			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
+		},
 	}
 
 	out, err := config.FormatConfig(original)
@@ -88,7 +96,10 @@ func TestFormatConfig_RoundTrip(t *testing.T) {
 	assertStringSlice(t, "AdditionalMounts", roundTripped.AdditionalMounts, original.AdditionalMounts)
 	assertStringSlice(t, "ContainerSetupCmds", roundTripped.ContainerSetupCmds, original.ContainerSetupCmds)
 	assertStringSlice(t, "InheritEnv", roundTripped.InheritEnv, original.InheritEnv)
-	assertStringSlice(t, "PodmanOptions.Run", roundTripped.PodmanOptions.Run, original.PodmanOptions.Run)
+
+	if !reflect.DeepEqual(roundTripped.RuntimeOptions, original.RuntimeOptions) {
+		t.Errorf("RuntimeOptions: got %v, want %v", roundTripped.RuntimeOptions, original.RuntimeOptions)
+	}
 }
 
 func TestGetConfigValue(t *testing.T) {
@@ -101,7 +112,9 @@ func TestGetConfigValue(t *testing.T) {
 		AdditionalMounts:   []string{testMountA, testMountB},
 		ContainerSetupCmds: []string{testSetupCmd, testSetupCmd2},
 		InheritEnv:         []string{testInheritEnv, testInheritEnv2},
-		PodmanOptions:      config.PodmanOptions{Run: []string{testPodmanRunOption, testPodmanRunOption2}},
+		RuntimeOptions: []config.RuntimeOption{
+			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg, testExtraArg2}},
+		},
 	}
 
 	cases := []struct {
@@ -114,7 +127,7 @@ func TestGetConfigValue(t *testing.T) {
 		{"additional_mounts", testMountA + "," + testMountB},
 		{"container_setup_cmds", testSetupCmd + "," + testSetupCmd2},
 		{"inherit_env", testInheritEnv + "," + testInheritEnv2},
-		{"podman_options.run", testPodmanRunOption + "," + testPodmanRunOption2},
+		{keyRuntimeOptionsRun, testExtraArg + "," + testExtraArg2},
 	}
 
 	for _, testCase := range cases {
@@ -133,6 +146,48 @@ func TestGetConfigValue(t *testing.T) {
 	}
 }
 
+func TestGetConfigValue_RuntimeOptionsUnsetReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	got, err := config.GetConfigValue(config.Config{
+		ContainerCmd:       "",
+		ConfigHome:         "",
+		Workdir:            "",
+		AdditionalMounts:   nil,
+		ContainerSetupCmds: nil,
+		InheritEnv:         nil,
+		RuntimeOptions:     nil,
+	}, keyRuntimeOptionsBuild)
+	if err != nil {
+		t.Fatalf("GetConfigValue: %v", err)
+	}
+
+	if got != "" {
+		t.Errorf("got %q, want empty", got)
+	}
+}
+
+func TestGetConfigValue_RuntimeOptionsInvalidSubcommand(t *testing.T) {
+	t.Parallel()
+
+	_, err := config.GetConfigValue(config.Config{
+		ContainerCmd:       "",
+		ConfigHome:         "",
+		Workdir:            "",
+		AdditionalMounts:   nil,
+		ContainerSetupCmds: nil,
+		InheritEnv:         nil,
+		RuntimeOptions:     nil,
+	}, "runtime_options.podman.exec")
+	if err == nil {
+		t.Fatal("expected error for invalid subcommand, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "exec") {
+		t.Errorf("error should mention the invalid subcommand: %v", err)
+	}
+}
+
 func TestGetConfigValue_UnknownKey(t *testing.T) {
 	t.Parallel()
 
@@ -143,7 +198,7 @@ func TestGetConfigValue_UnknownKey(t *testing.T) {
 		AdditionalMounts:   nil,
 		ContainerSetupCmds: nil,
 		InheritEnv:         nil,
-		PodmanOptions:      config.PodmanOptions{Run: nil},
+		RuntimeOptions:     nil,
 	}, "nonexistent_key")
 	if err == nil {
 		t.Fatal("expected error for unknown key, got nil")
@@ -231,7 +286,7 @@ func TestSetConfigValue_AdditionalMounts(t *testing.T) {
 		{"single", testMountA, []string{testMountA}},
 		{"multiple", testMountA + "," + testMountB, []string{testMountA, testMountB}},
 		{"with spaces", " " + testMountA + " , " + testMountB + " ", []string{testMountA, testMountB}},
-		{"empty", "", nil},
+		{testCaseNameEmpty, "", nil},
 	}
 
 	for _, testCase := range cases {
@@ -264,12 +319,12 @@ func TestSetConfigValue_AdditionalMounts(t *testing.T) {
 	}
 }
 
-func TestSetConfigValue_PodmanOptionsRun(t *testing.T) {
+func TestSetConfigValue_RuntimeOptions(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 
-	if err := config.SetConfigValue(dir, "podman_options.run", testPodmanRunOption+","+testPodmanRunOption2); err != nil {
+	if err := config.SetConfigValue(dir, keyRuntimeOptionsRun, testExtraArg+","+testExtraArg2); err != nil {
 		t.Fatalf("SetConfigValue: %v", err)
 	}
 
@@ -278,10 +333,57 @@ func TestSetConfigValue_PodmanOptionsRun(t *testing.T) {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}
 
-	if len(cfg.PodmanOptions.Run) != 2 ||
-		cfg.PodmanOptions.Run[0] != testPodmanRunOption ||
-		cfg.PodmanOptions.Run[1] != testPodmanRunOption2 {
-		t.Errorf("PodmanOptions.Run: got %v, want [%q %q]", cfg.PodmanOptions.Run, testPodmanRunOption, testPodmanRunOption2)
+	want := []config.RuntimeOption{
+		{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg, testExtraArg2}},
+	}
+
+	if !reflect.DeepEqual(cfg.RuntimeOptions, want) {
+		t.Errorf("RuntimeOptions: got %v, want %v", cfg.RuntimeOptions, want)
+	}
+}
+
+func TestSetConfigValue_RuntimeOptionsUpdatesExistingEntry(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	if err := config.SetConfigValue(dir, keyRuntimeOptionsRun, testExtraArg); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	if err := config.SetConfigValue(dir, keyRuntimeOptionsBuild, testExtraArg2); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	if err := config.SetConfigValue(dir, keyRuntimeOptionsRun, testExtraArg2); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	cfg, err := config.LoadConfigFrom(dir)
+	if err != nil {
+		t.Fatalf("LoadConfigFrom: %v", err)
+	}
+
+	want := []config.RuntimeOption{
+		{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg2}},
+		{Runtime: testRuntimePodman, Subcommand: config.SubcommandBuild, Args: []string{testExtraArg2}},
+	}
+
+	if !reflect.DeepEqual(cfg.RuntimeOptions, want) {
+		t.Errorf("RuntimeOptions: got %v, want %v", cfg.RuntimeOptions, want)
+	}
+}
+
+func TestSetConfigValue_RuntimeOptionsInvalidSubcommand(t *testing.T) {
+	t.Parallel()
+
+	err := config.SetConfigValue(t.TempDir(), "runtime_options.podman.exec", testExtraArg)
+	if err == nil {
+		t.Fatal("expected error for invalid subcommand, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "exec") {
+		t.Errorf("error should mention the invalid subcommand: %v", err)
 	}
 }
 
@@ -355,8 +457,8 @@ func TestLoadConfigFrom_Defaults(t *testing.T) {
 		t.Errorf("InheritEnv: got %v, want empty", cfg.InheritEnv)
 	}
 
-	if len(cfg.PodmanOptions.Run) != 0 {
-		t.Errorf("PodmanOptions.Run: got %v, want empty", cfg.PodmanOptions.Run)
+	if len(cfg.RuntimeOptions) != 0 {
+		t.Errorf("RuntimeOptions: got %v, want empty", cfg.RuntimeOptions)
 	}
 
 	if cfg.Workdir == "" {
@@ -376,8 +478,10 @@ additional_mounts = ["/host:/container"]
 container_setup_cmds = ["echo setup"]
 inherit_env = ["SSH_AUTH_SOCK"]
 
-[podman_options]
-run = ["--userns=keep-id"]
+[[runtime_options]]
+runtime = "podman"
+subcommand = "run"
+args = ["--userns=keep-id"]
 `)
 
 	cfg, err := config.LoadConfigFrom(dir)
@@ -400,7 +504,13 @@ run = ["--userns=keep-id"]
 	assertStringSlice(t, "AdditionalMounts", cfg.AdditionalMounts, []string{"/host:/container"})
 	assertStringSlice(t, "ContainerSetupCmds", cfg.ContainerSetupCmds, []string{testSetupCmd})
 	assertStringSlice(t, "InheritEnv", cfg.InheritEnv, []string{testInheritEnv})
-	assertStringSlice(t, "PodmanOptions.Run", cfg.PodmanOptions.Run, []string{testPodmanRunOption})
+
+	wantRuntimeOptions := []config.RuntimeOption{
+		{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
+	}
+	if !reflect.DeepEqual(cfg.RuntimeOptions, wantRuntimeOptions) {
+		t.Errorf("RuntimeOptions: got %v, want %v", cfg.RuntimeOptions, wantRuntimeOptions)
+	}
 }
 
 func TestLoadConfig_XDGConfigHome(t *testing.T) {
@@ -435,9 +545,6 @@ workdir = "/config-file-workdir"
 additional_mounts = ["/config-file:/config-file"]
 container_setup_cmds = ["echo config-file"]
 inherit_env = ["CONFIG_FILE_TOKEN"]
-
-[podman_options]
-run = ["--userns=keep-id"]
 `)
 
 	t.Setenv("CHELLY_CONTAINER_CMD", testContainerCmdPodman)
@@ -446,7 +553,6 @@ run = ["--userns=keep-id"]
 	t.Setenv("CHELLY_ADDITIONAL_MOUNTS", "/env-host:/env-container")
 	t.Setenv("CHELLY_CONTAINER_SETUP_CMDS", "echo-env")
 	t.Setenv("CHELLY_INHERIT_ENV", testInheritEnv+","+testInheritEnv2)
-	t.Setenv("CHELLY_PODMAN_OPTIONS_RUN", testPodmanRunOption+","+testPodmanRunOption2)
 
 	cfg, err := config.LoadConfigFrom(dir)
 	if err != nil {
@@ -468,7 +574,6 @@ run = ["--userns=keep-id"]
 	assertStringSlice(t, "AdditionalMounts", cfg.AdditionalMounts, []string{"/env-host:/env-container"})
 	assertStringSlice(t, "ContainerSetupCmds", cfg.ContainerSetupCmds, []string{"echo-env"})
 	assertStringSlice(t, "InheritEnv", cfg.InheritEnv, []string{testInheritEnv, testInheritEnv2})
-	assertStringSlice(t, "PodmanOptions.Run", cfg.PodmanOptions.Run, []string{testPodmanRunOption, testPodmanRunOption2})
 }
 
 func TestValidateInheritEnv(t *testing.T) {
@@ -479,7 +584,7 @@ func TestValidateInheritEnv(t *testing.T) {
 		values  []string
 		wantErr bool
 	}{
-		{"empty", nil, false},
+		{testCaseNameEmpty, nil, false},
 		{"valid", []string{"SSH_AUTH_SOCK", "_TOKEN", "GITHUB_TOKEN2"}, false},
 		{"contains equals", []string{"FOO=bar"}, true},
 		{"starts with number", []string{"1TOKEN"}, true},
@@ -501,4 +606,125 @@ func TestValidateInheritEnv(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateRuntimeOptions(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		opts    []config.RuntimeOption
+		wantErr bool
+	}{
+		{testCaseNameEmpty, nil, false},
+		{
+			"valid",
+			[]config.RuntimeOption{
+				{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
+				{Runtime: testRuntimeDocker, Subcommand: config.SubcommandBuild, Args: []string{testExtraArg2}},
+			},
+			false,
+		},
+		{
+			"invalid subcommand",
+			[]config.RuntimeOption{{Runtime: testRuntimePodman, Subcommand: "exec", Args: []string{testExtraArg}}},
+			true,
+		},
+		{
+			"duplicate runtime and subcommand",
+			[]config.RuntimeOption{
+				{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
+				{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg2}},
+			},
+			true,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := config.ValidateRuntimeOptions(testCase.opts)
+			if testCase.wantErr && err == nil {
+				t.Fatal("ValidateRuntimeOptions returned nil, want error")
+			}
+
+			if !testCase.wantErr && err != nil {
+				t.Fatalf("ValidateRuntimeOptions: %v", err)
+			}
+		})
+	}
+}
+
+func TestResolveRuntimeArgs(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{
+		ContainerCmd:       testContainerCmdPodman,
+		ConfigHome:         "",
+		Workdir:            "",
+		AdditionalMounts:   nil,
+		ContainerSetupCmds: nil,
+		InheritEnv:         nil,
+		RuntimeOptions: []config.RuntimeOption{
+			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
+		},
+	}
+
+	assertStringSlice(t, "run", config.ResolveRuntimeArgs(cfg, config.SubcommandRun), []string{testExtraArg})
+	assertStringSlice(t, "build", config.ResolveRuntimeArgs(cfg, config.SubcommandBuild), nil)
+}
+
+func TestResolveRuntimeArgs_UsesContainerCmdBasename(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{
+		ContainerCmd:       "/usr/bin/podman",
+		ConfigHome:         "",
+		Workdir:            "",
+		AdditionalMounts:   nil,
+		ContainerSetupCmds: nil,
+		InheritEnv:         nil,
+		RuntimeOptions: []config.RuntimeOption{
+			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
+		},
+	}
+
+	assertStringSlice(t, "run", config.ResolveRuntimeArgs(cfg, config.SubcommandRun), []string{testExtraArg})
+}
+
+func TestResolveRuntimeArgs_IgnoresOtherRuntime(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{
+		ContainerCmd:       testContainerCmdDocker,
+		ConfigHome:         "",
+		Workdir:            "",
+		AdditionalMounts:   nil,
+		ContainerSetupCmds: nil,
+		InheritEnv:         nil,
+		RuntimeOptions: []config.RuntimeOption{
+			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
+		},
+	}
+
+	assertStringSlice(t, "run", config.ResolveRuntimeArgs(cfg, config.SubcommandRun), nil)
+}
+
+func TestResolveRuntimeArgs_EnvVarOverridesConfig(t *testing.T) {
+	cfg := config.Config{
+		ContainerCmd:       testContainerCmdPodman,
+		ConfigHome:         "",
+		Workdir:            "",
+		AdditionalMounts:   nil,
+		ContainerSetupCmds: nil,
+		InheritEnv:         nil,
+		RuntimeOptions: []config.RuntimeOption{
+			{Runtime: testRuntimePodman, Subcommand: config.SubcommandRun, Args: []string{testExtraArg}},
+		},
+	}
+
+	t.Setenv("CHELLY_RUNTIME_OPTIONS_PODMAN_RUN", testExtraArg2)
+
+	assertStringSlice(t, "run", config.ResolveRuntimeArgs(cfg, config.SubcommandRun), []string{testExtraArg2})
 }

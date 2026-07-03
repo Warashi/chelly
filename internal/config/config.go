@@ -37,7 +37,14 @@ const (
 	keyAdditionalMounts   = "additional_mounts"
 	keyContainerSetupCmds = "container_setup_cmds"
 	keyInheritEnv         = "inherit_env"
-	keyPodmanOptionsRun   = "podman_options.run"
+	keyRuntimeOptions     = "runtime_options"
+)
+
+const (
+	// SubcommandRun is the container runtime subcommand used to run a container.
+	SubcommandRun = "run"
+	// SubcommandBuild is the container runtime subcommand used to build an image.
+	SubcommandBuild = "build"
 )
 
 // ErrUnknownConfigKey is returned when an unrecognized configuration key is used.
@@ -46,25 +53,43 @@ var ErrUnknownConfigKey = errors.New("unknown config key")
 // ErrInvalidEnvName is returned when inherit_env contains an invalid environment variable name.
 var ErrInvalidEnvName = errors.New("invalid environment variable name")
 
+// ErrInvalidSubcommand is returned when a runtime_options entry names an unsupported subcommand.
+var ErrInvalidSubcommand = errors.New("invalid runtime_options subcommand")
+
+// ErrDuplicateRuntimeOption is returned when runtime_options contains more than one
+// entry for the same runtime and subcommand pair.
+var ErrDuplicateRuntimeOption = errors.New("duplicate runtime_options entry")
+
 var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// PodmanOptions holds Podman-specific container options.
-type PodmanOptions struct {
-	Run []string `toml:"run"`
+// runtimeOptionKeyPattern matches keys of the form runtime_options.<runtime>.<subcommand>.
+var runtimeOptionKeyPattern = regexp.MustCompile(`^runtime_options\.([^.]+)\.([^.]+)$`)
+
+// validSubcommands is the list of container runtime subcommands that support
+// runtime-specific extra arguments.
+var validSubcommands = []string{SubcommandRun, SubcommandBuild}
+
+// RuntimeOption holds extra arguments to pass to a specific container runtime
+// subcommand (e.g. "podman run" or "docker build").
+type RuntimeOption struct {
+	Runtime    string   `toml:"runtime"`
+	Subcommand string   `toml:"subcommand"`
+	Args       []string `toml:"args"`
 }
 
 // Config holds the chelly configuration.
 type Config struct {
-	ContainerCmd       string        `toml:"container_cmd"`
-	ConfigHome         string        `toml:"config_home"`
-	Workdir            string        `toml:"workdir"`
-	AdditionalMounts   []string      `toml:"additional_mounts"`
-	ContainerSetupCmds []string      `toml:"container_setup_cmds"`
-	InheritEnv         []string      `toml:"inherit_env"`
-	PodmanOptions      PodmanOptions `toml:"podman_options"`
+	ContainerCmd       string          `toml:"container_cmd"`
+	ConfigHome         string          `toml:"config_home"`
+	Workdir            string          `toml:"workdir"`
+	AdditionalMounts   []string        `toml:"additional_mounts"`
+	ContainerSetupCmds []string        `toml:"container_setup_cmds"`
+	InheritEnv         []string        `toml:"inherit_env"`
+	RuntimeOptions     []RuntimeOption `toml:"runtime_options"`
 }
 
-// validConfigKeys is the list of all valid configuration key names.
+// validConfigKeys is the list of all valid static configuration key names.
+// Dynamic keys of the form runtime_options.<runtime>.<subcommand> are validated separately.
 var validConfigKeys = []string{
 	"container_cmd",
 	"config_home",
@@ -72,7 +97,6 @@ var validConfigKeys = []string{
 	keyAdditionalMounts,
 	keyContainerSetupCmds,
 	keyInheritEnv,
-	keyPodmanOptionsRun,
 }
 
 // FormatConfig serializes cfg to a TOML string representing the effective configuration.
@@ -88,6 +112,10 @@ func FormatConfig(cfg Config) (string, error) {
 // GetConfigValue returns the effective value of the named key as a string.
 // For additional_mounts and container_setup_cmds, values are comma-joined.
 func GetConfigValue(cfg Config, key string) (string, error) {
+	if runtime, subcommand, ok := parseRuntimeOptionKey(key); ok {
+		return getRuntimeOptionValue(cfg, runtime, subcommand)
+	}
+
 	switch key {
 	case "container_cmd":
 		return cfg.ContainerCmd, nil
@@ -101,11 +129,43 @@ func GetConfigValue(cfg Config, key string) (string, error) {
 		return strings.Join(cfg.ContainerSetupCmds, ","), nil
 	case keyInheritEnv:
 		return strings.Join(cfg.InheritEnv, ","), nil
-	case keyPodmanOptionsRun:
-		return strings.Join(cfg.PodmanOptions.Run, ","), nil
 	default:
 		return "", fmt.Errorf("%w %q: valid keys are %s", ErrUnknownConfigKey, key, strings.Join(validConfigKeys, ", "))
 	}
+}
+
+func getRuntimeOptionValue(cfg Config, runtime, subcommand string) (string, error) {
+	if err := validateSubcommand(subcommand); err != nil {
+		return "", err
+	}
+
+	for _, opt := range cfg.RuntimeOptions {
+		if opt.Runtime == runtime && opt.Subcommand == subcommand {
+			return strings.Join(opt.Args, ","), nil
+		}
+	}
+
+	return "", nil
+}
+
+// parseRuntimeOptionKey splits a key of the form runtime_options.<runtime>.<subcommand>
+// into its runtime and subcommand parts. ok is false when key does not match this shape.
+func parseRuntimeOptionKey(key string) (string, string, bool) {
+	m := runtimeOptionKeyPattern.FindStringSubmatch(key)
+	if m == nil {
+		return "", "", false
+	}
+
+	return m[1], m[2], true
+}
+
+func validateSubcommand(subcommand string) error {
+	if !slices.Contains(validSubcommands, subcommand) {
+		return fmt.Errorf("%w %q: valid subcommands are %s",
+			ErrInvalidSubcommand, subcommand, strings.Join(validSubcommands, ", "))
+	}
+
+	return nil
 }
 
 func configListValue(value string) []string {
@@ -133,7 +193,7 @@ func applyConfigValue(data map[string]any, key, value string) {
 	var configValue any
 
 	switch key {
-	case keyAdditionalMounts, keyContainerSetupCmds, keyInheritEnv, keyPodmanOptionsRun:
+	case keyAdditionalMounts, keyContainerSetupCmds, keyInheritEnv:
 		configValue = configListValue(value)
 	default:
 		configValue = value
@@ -155,28 +215,87 @@ func applyConfigValue(data map[string]any, key, value string) {
 	current[parts[len(parts)-1]] = configValue
 }
 
+// applyRuntimeOptionValue upserts the entry matching runtime and subcommand within
+// data[keyRuntimeOptions] (an array of tables), setting its args to value's
+// comma-separated list.
+func applyRuntimeOptionValue(data map[string]any, runtime, subcommand, value string) {
+	entries, _ := data[keyRuntimeOptions].([]any)
+
+	args := configListValue(value)
+
+	for _, entry := range entries {
+		table, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if table["runtime"] == runtime && table["subcommand"] == subcommand {
+			table["args"] = args
+
+			data[keyRuntimeOptions] = entries
+
+			return
+		}
+	}
+
+	entries = append(entries, map[string]any{
+		"runtime":    runtime,
+		"subcommand": subcommand,
+		"args":       args,
+	})
+
+	data[keyRuntimeOptions] = entries
+}
+
 // SetConfigValue writes key=value into the TOML config file in configDir.
 // For additional_mounts, value is a comma-separated list of mount specs.
 // The config file and directory are created if they do not exist.
 func SetConfigValue(configDir, key, value string) error {
-	if !slices.Contains(validConfigKeys, key) {
+	runtime, subcommand, isRuntimeOption := parseRuntimeOptionKey(key)
+	if isRuntimeOption {
+		if err := validateSubcommand(subcommand); err != nil {
+			return err
+		}
+	} else if !slices.Contains(validConfigKeys, key) {
 		return fmt.Errorf("%w %q: valid keys are %s", ErrUnknownConfigKey, key, strings.Join(validConfigKeys, ", "))
 	}
 
+	data, err := readConfigData(configDir)
+	if err != nil {
+		return err
+	}
+
+	if isRuntimeOption {
+		applyRuntimeOptionValue(data, runtime, subcommand, value)
+	} else {
+		applyConfigValue(data, key, value)
+	}
+
+	return writeConfigData(configDir, data)
+}
+
+func readConfigData(configDir string) (map[string]any, error) {
 	configFile := filepath.Join(configDir, "config.toml")
 
 	data := map[string]any{}
 
-	if content, err := os.ReadFile(configFile); err == nil { //nolint:gosec
-		if err := toml.Unmarshal(content, &data); err != nil {
-			return fmt.Errorf("parsing config file: %w", err)
+	content, err := os.ReadFile(configFile) //nolint:gosec
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return data, nil
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("reading config file: %w", err)
+
+		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 
-	applyConfigValue(data, key, value)
+	if err := toml.Unmarshal(content, &data); err != nil {
+		return nil, fmt.Errorf("parsing config file: %w", err)
+	}
 
+	return data, nil
+}
+
+func writeConfigData(configDir string, data map[string]any) error {
 	content, err := toml.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("marshaling config: %w", err)
@@ -186,6 +305,7 @@ func SetConfigValue(configDir, key, value string) error {
 		return fmt.Errorf("creating config dir: %w", err)
 	}
 
+	configFile := filepath.Join(configDir, "config.toml")
 	if err := os.WriteFile(configFile, content, filePerm); err != nil {
 		return fmt.Errorf("writing config file: %w", err)
 	}
@@ -198,6 +318,50 @@ func ValidateInheritEnv(names []string) error {
 	for _, name := range names {
 		if !envNamePattern.MatchString(name) {
 			return fmt.Errorf("%w %q", ErrInvalidEnvName, name)
+		}
+	}
+
+	return nil
+}
+
+// ValidateRuntimeOptions returns an error when opts contains an entry with an
+// unsupported subcommand, or more than one entry for the same runtime and
+// subcommand pair.
+func ValidateRuntimeOptions(opts []RuntimeOption) error {
+	seen := map[[2]string]struct{}{}
+
+	for _, opt := range opts {
+		if err := validateSubcommand(opt.Subcommand); err != nil {
+			return err
+		}
+
+		pair := [2]string{opt.Runtime, opt.Subcommand}
+		if _, ok := seen[pair]; ok {
+			return fmt.Errorf("%w: runtime %q, subcommand %q", ErrDuplicateRuntimeOption, opt.Runtime, opt.Subcommand)
+		}
+
+		seen[pair] = struct{}{}
+	}
+
+	return nil
+}
+
+// ResolveRuntimeArgs returns the extra arguments to pass to the given container
+// runtime subcommand (e.g. SubcommandRun or SubcommandBuild), based on cfg.ContainerCmd.
+//
+// The environment variable CHELLY_RUNTIME_OPTIONS_<RUNTIME>_<SUBCOMMAND> takes
+// precedence over cfg.RuntimeOptions when set.
+func ResolveRuntimeArgs(cfg Config, subcommand string) []string {
+	runtime := filepath.Base(cfg.ContainerCmd)
+
+	envName := "CHELLY_RUNTIME_OPTIONS_" + strings.ToUpper(runtime) + "_" + strings.ToUpper(subcommand)
+	if value, ok := os.LookupEnv(envName); ok {
+		return configListValue(value)
+	}
+
+	for _, opt := range cfg.RuntimeOptions {
+		if opt.Runtime == runtime && opt.Subcommand == subcommand {
+			return opt.Args
 		}
 	}
 
@@ -256,13 +420,17 @@ func LoadConfigFrom(configDir string) (Config, error) {
 	viperInst.SetDefault("additional_mounts", []string{})
 	viperInst.SetDefault("container_setup_cmds", []string{})
 	viperInst.SetDefault("inherit_env", []string{})
-	viperInst.SetDefault(keyPodmanOptionsRun, []string{})
 
 	if err := viperInst.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
 		if !errors.As(err, &notFound) {
 			return Config{}, fmt.Errorf("reading config file: %w", err)
 		}
+	}
+
+	var runtimeOptions []RuntimeOption
+	if err := viperInst.UnmarshalKey(keyRuntimeOptions, &runtimeOptions); err != nil {
+		return Config{}, fmt.Errorf("parsing runtime_options: %w", err)
 	}
 
 	workdir := viperInst.GetString("workdir")
@@ -282,6 +450,6 @@ func LoadConfigFrom(configDir string) (Config, error) {
 		AdditionalMounts:   configListValueFrom(viperInst, keyAdditionalMounts),
 		ContainerSetupCmds: configListValueFrom(viperInst, keyContainerSetupCmds),
 		InheritEnv:         configListValueFrom(viperInst, keyInheritEnv),
-		PodmanOptions:      PodmanOptions{Run: configListValueFrom(viperInst, keyPodmanOptionsRun)},
+		RuntimeOptions:     runtimeOptions,
 	}, nil
 }
