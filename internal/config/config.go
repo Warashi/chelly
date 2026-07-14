@@ -32,13 +32,12 @@ import (
 )
 
 const (
-	dirPerm               = 0o700
-	filePerm              = 0o600
-	keyAdditionalMounts   = "additional_mounts"
-	keyContainerSetupCmds = "container_setup_cmds"
-	keyInheritEnv         = "inherit_env"
-	keyEnvFiles           = "env_files"
-	keyRuntimeOptions     = "runtime_options"
+	dirPerm             = 0o700
+	filePerm            = 0o600
+	keyAdditionalMounts = "additional_mounts"
+	keyInheritEnv       = "inherit_env"
+	keyEnvFiles         = "env_files"
+	keyRuntimeOptions   = "runtime_options"
 )
 
 const (
@@ -83,14 +82,13 @@ type RuntimeOption struct {
 
 // Config holds the chelly configuration.
 type Config struct {
-	ContainerCmd       string          `toml:"container_cmd"`
-	ConfigHome         string          `toml:"config_home"`
-	Workdir            string          `toml:"workdir"`
-	AdditionalMounts   []string        `toml:"additional_mounts"`
-	ContainerSetupCmds []string        `toml:"container_setup_cmds"`
-	InheritEnv         []string        `toml:"inherit_env"`
-	EnvFiles           []string        `toml:"env_files"`
-	RuntimeOptions     []RuntimeOption `toml:"runtime_options"`
+	ContainerCmd     string          `toml:"container_cmd"`
+	ConfigHome       string          `toml:"config_home"`
+	Workdir          string          `toml:"workdir"`
+	AdditionalMounts []string        `toml:"additional_mounts"`
+	InheritEnv       []string        `toml:"inherit_env"`
+	EnvFiles         []string        `toml:"env_files"`
+	RuntimeOptions   []RuntimeOption `toml:"runtime_options"`
 }
 
 // validConfigKeys is the list of all valid static configuration key names.
@@ -100,7 +98,6 @@ var validConfigKeys = []string{
 	"config_home",
 	"workdir",
 	keyAdditionalMounts,
-	keyContainerSetupCmds,
 	keyInheritEnv,
 	keyEnvFiles,
 }
@@ -116,7 +113,7 @@ func FormatConfig(cfg Config) (string, error) {
 }
 
 // GetConfigValue returns the effective value of the named key as a string.
-// For additional_mounts and container_setup_cmds, values are comma-joined.
+// For list-valued settings, values are comma-joined.
 func GetConfigValue(cfg Config, key string) (string, error) {
 	if runtime, subcommand, ok := parseRuntimeOptionKey(key); ok {
 		return getRuntimeOptionValue(cfg, runtime, subcommand)
@@ -131,8 +128,6 @@ func GetConfigValue(cfg Config, key string) (string, error) {
 		return cfg.Workdir, nil
 	case keyAdditionalMounts:
 		return strings.Join(cfg.AdditionalMounts, ","), nil
-	case keyContainerSetupCmds:
-		return strings.Join(cfg.ContainerSetupCmds, ","), nil
 	case keyInheritEnv:
 		return strings.Join(cfg.InheritEnv, ","), nil
 	case keyEnvFiles:
@@ -201,7 +196,7 @@ func applyConfigValue(data map[string]any, key, value string) {
 	var configValue any
 
 	switch key {
-	case keyAdditionalMounts, keyContainerSetupCmds, keyInheritEnv, keyEnvFiles:
+	case keyAdditionalMounts, keyInheritEnv, keyEnvFiles:
 		configValue = configListValue(value)
 	default:
 		configValue = value
@@ -475,7 +470,6 @@ func LoadConfigFrom(configDir string) (Config, error) {
 	viperInst.SetDefault("container_cmd", DetectContainerCmd())
 	viperInst.SetDefault("config_home", configDir)
 	viperInst.SetDefault("additional_mounts", []string{})
-	viperInst.SetDefault("container_setup_cmds", []string{})
 	viperInst.SetDefault("inherit_env", []string{})
 	viperInst.SetDefault("env_files", []string{})
 
@@ -502,13 +496,12 @@ func LoadConfigFrom(configDir string) (Config, error) {
 	}
 
 	return Config{
-		ContainerCmd:       viperInst.GetString("container_cmd"),
-		ConfigHome:         viperInst.GetString("config_home"),
-		Workdir:            workdir,
-		AdditionalMounts:   configListValueFrom(viperInst, keyAdditionalMounts),
-		ContainerSetupCmds: configListValueFrom(viperInst, keyContainerSetupCmds),
-		InheritEnv:         configListValueFrom(viperInst, keyInheritEnv),
-		EnvFiles:           configListValueFrom(viperInst, keyEnvFiles),
-		RuntimeOptions:     runtimeOptions,
+		ContainerCmd:     viperInst.GetString("container_cmd"),
+		ConfigHome:       viperInst.GetString("config_home"),
+		Workdir:          workdir,
+		AdditionalMounts: configListValueFrom(viperInst, keyAdditionalMounts),
+		InheritEnv:       configListValueFrom(viperInst, keyInheritEnv),
+		EnvFiles:         configListValueFrom(viperInst, keyEnvFiles),
+		RuntimeOptions:   runtimeOptions,
 	}, nil
 }

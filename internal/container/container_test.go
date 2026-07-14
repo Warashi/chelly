@@ -43,8 +43,6 @@ const (
 	testCommonParentMount  = "/repo:/repo"
 	testHostMount          = "/host:/cont"
 	testWorkspace          = "/workspace"
-	testSetupCmd           = "echo setup"
-	testSetupCmd2          = "echo setup2"
 	testInheritEnv         = "SSH_AUTH_SOCK"
 	testInheritEnv2        = "GITHUB_TOKEN"
 	testEnvFile            = "/project/.env"
@@ -60,8 +58,6 @@ const (
 	flagInteractive = "--interactive"
 	flagTTY         = "--tty"
 	flagTag         = "--tag"
-	shellSh         = "sh"
-	shellFlagLC     = "-lc"
 	cmdRun          = "run"
 	cmdEcho         = "echo"
 	cmdBash         = "bash"
@@ -77,13 +73,12 @@ func baseBuildConfig() BuildConfig {
 
 func baseRunConfig() RunConfig {
 	return RunConfig{
-		ContainerCmd:       testContainerCmdDocker,
-		Workdir:            testWorkDir,
-		AdditionalMounts:   nil,
-		ContainerSetupCmds: nil,
-		InheritEnv:         nil,
-		EnvFiles:           nil,
-		ExtraArgs:          nil,
+		ContainerCmd:     testContainerCmdDocker,
+		Workdir:          testWorkDir,
+		AdditionalMounts: nil,
+		InheritEnv:       nil,
+		EnvFiles:         nil,
+		ExtraArgs:        nil,
 	}
 }
 
@@ -382,86 +377,6 @@ func TestRunArgs_NoExtraArgsWhenUnset(t *testing.T) {
 	}
 }
 
-func TestRunArgs_SetupCmdWithCommand(t *testing.T) {
-	t.Parallel()
-
-	cfg := baseRunConfig()
-	cfg.ContainerSetupCmds = []string{testSetupCmd}
-
-	got := container.RunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
-	want := []string{
-		cmdRun, flagRM, flagInteractive,
-		flagVolume, testWorkDirMount,
-		flagWorkdir, testWorkDir,
-		container.ImageName,
-		shellSh, shellFlagLC, `echo setup >&2 && exec "$@"`, shellSh,
-		cmdEcho, cmdHello,
-	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("RunArgs: got %v, want %v", got, want)
-	}
-}
-
-func TestRunArgs_SetupCmdWithoutCommandPreservesImageDefaults(t *testing.T) {
-	t.Parallel()
-
-	cfg := baseRunConfig()
-	cfg.ContainerSetupCmds = []string{testSetupCmd}
-
-	got := container.RunArgs(cfg, testWorkDir, false, []string{})
-	want := []string{
-		cmdRun, flagRM, flagInteractive,
-		flagVolume, testWorkDirMount,
-		flagWorkdir, testWorkDir,
-		container.ImageName,
-	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("RunArgs: got %v, want %v", got, want)
-	}
-}
-
-func TestRunArgs_MultipleSetupCmdsWithCommand(t *testing.T) {
-	t.Parallel()
-
-	cfg := baseRunConfig()
-	cfg.ContainerSetupCmds = []string{testSetupCmd, testSetupCmd2}
-
-	got := container.RunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
-	want := []string{
-		cmdRun, flagRM, flagInteractive,
-		flagVolume, testWorkDirMount,
-		flagWorkdir, testWorkDir,
-		container.ImageName,
-		shellSh, shellFlagLC, `echo setup >&2 & p0=$!; echo setup2 >&2 & p1=$!; wait $p0 && wait $p1 && exec "$@"`, shellSh,
-		cmdEcho, cmdHello,
-	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("RunArgs: got %v, want %v", got, want)
-	}
-}
-
-func TestRunArgs_MultipleSetupCmdsWithoutCommandPreservesImageDefaults(t *testing.T) {
-	t.Parallel()
-
-	cfg := baseRunConfig()
-	cfg.ContainerSetupCmds = []string{testSetupCmd, testSetupCmd2}
-
-	got := container.RunArgs(cfg, testWorkDir, false, []string{})
-	want := []string{
-		cmdRun, flagRM, flagInteractive,
-		flagVolume, testWorkDirMount,
-		flagWorkdir, testWorkDir,
-		container.ImageName,
-	}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("RunArgs: got %v, want %v", got, want)
-	}
-}
-
 func TestRunArgs_CustomWorkdir(t *testing.T) {
 	t.Parallel()
 
@@ -486,13 +401,12 @@ func TestRunArgs_AllOptions(t *testing.T) {
 	t.Parallel()
 
 	cfg := RunConfig{
-		ContainerCmd:       testContainerCmdPodman,
-		Workdir:            testWorkspace,
-		AdditionalMounts:   []string{"/home/user/.ssh:/home/user/.ssh"},
-		ContainerSetupCmds: []string{"source /etc/profile"},
-		InheritEnv:         []string{testInheritEnv},
-		EnvFiles:           []string{testEnvFile},
-		ExtraArgs:          []string{testExtraArg},
+		ContainerCmd:     testContainerCmdPodman,
+		Workdir:          testWorkspace,
+		AdditionalMounts: []string{"/home/user/.ssh:/home/user/.ssh"},
+		InheritEnv:       []string{testInheritEnv},
+		EnvFiles:         []string{testEnvFile},
+		ExtraArgs:        []string{testExtraArg},
 	}
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{cmdBash, "-c", "echo hi"})
@@ -505,7 +419,6 @@ func TestRunArgs_AllOptions(t *testing.T) {
 		flagEnv, testInheritEnv,
 		flagWorkdir, testWorkspace,
 		container.ImageName,
-		shellSh, shellFlagLC, `source /etc/profile >&2 && exec "$@"`, shellSh,
 		cmdBash, "-c", "echo hi",
 	}
 

@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	"golang.org/x/sys/unix"
 )
@@ -42,13 +41,12 @@ type BuildConfig struct {
 
 // RunConfig holds configuration used by container execution.
 type RunConfig struct {
-	ContainerCmd       string
-	Workdir            string
-	AdditionalMounts   []string
-	ContainerSetupCmds []string
-	InheritEnv         []string
-	EnvFiles           []string
-	ExtraArgs          []string
+	ContainerCmd     string
+	Workdir          string
+	AdditionalMounts []string
+	InheritEnv       []string
+	EnvFiles         []string
+	ExtraArgs        []string
 }
 
 // BuildArgs returns the argument slice for the container build command.
@@ -105,20 +103,7 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string, autoM
 
 	args = append(args, "--workdir", cfg.Workdir)
 	args = append(args, ImageName)
-
-	if len(userArgs) == 0 {
-		return args
-	}
-
-	if len(cfg.ContainerSetupCmds) > 0 {
-		script := buildSetupScript(cfg.ContainerSetupCmds, userArgs)
-		args = append(args, "sh", "-lc", script)
-
-		args = append(args, "sh")
-		args = append(args, userArgs...)
-	} else {
-		args = append(args, userArgs...)
-	}
+	args = append(args, userArgs...)
 
 	return args
 }
@@ -131,31 +116,6 @@ func appendMount(args []string, seen map[string]struct{}, mount string) []string
 	seen[mount] = struct{}{}
 
 	return append(args, "--volume", mount)
-}
-
-func buildSetupScript(cmds []string, userArgs []string) string {
-	execSuffix := ""
-	if len(userArgs) > 0 {
-		execSuffix = ` && exec "$@"`
-	}
-
-	if len(cmds) == 1 {
-		return cmds[0] + " >&2" + execSuffix
-	}
-
-	var parts []string
-
-	for i, c := range cmds {
-		parts = append(parts, fmt.Sprintf("%s >&2 & p%d=$!", c, i))
-	}
-
-	var waits []string
-
-	for i := range cmds {
-		waits = append(waits, fmt.Sprintf("wait $p%d", i))
-	}
-
-	return strings.Join(parts, "; ") + "; " + strings.Join(waits, " && ") + execSuffix
 }
 
 // StripDashDash removes Cobra's command separator from user command arguments.

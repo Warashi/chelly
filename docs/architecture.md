@@ -32,7 +32,7 @@ Arg-building logic is separated from execution:
 
 - `container.BuildArgs(cfg, noCache)` returns the `docker build ...` argument slice
 - `container.RunArgs(cfg, wd, isTTY, userArgs, autoMounts...)` returns the `docker run ...` argument slice and always keeps stdin attached
-- When `userArgs` is empty, `RunArgs` appends nothing after the image name so the runtime uses the image's `ENTRYPOINT` and `CMD`; `container_setup_cmds` applies only to explicit commands
+- When `userArgs` is empty, `RunArgs` appends nothing after the image name so the runtime uses the image's `ENTRYPOINT` and `CMD`
 - `run` passes linked worktree auto-mounts resolved by `internal/git` into `RunArgs`; Git resolution failures produce no auto-mounts
 - `container.RunConfig`/`BuildConfig.ExtraArgs` are inserted unconditionally by the `container` package; resolving *which* arguments apply for the current runtime and subcommand is the caller's responsibility (see `config.ResolveRuntimeArgs` below), so `internal/container` has no knowledge of specific runtimes
 - Mounts are emitted in current directory, auto-mount, then `additional_mounts` order, with duplicate mount specs removed

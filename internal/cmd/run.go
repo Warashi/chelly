@@ -68,13 +68,12 @@ func newRunCommand() *cobra.Command {
 			tty := container.IsTTY(os.Stdin) && container.IsTTY(os.Stdout)
 			userArgs := container.StripDashDash(args)
 			containerArgs := container.RunArgs(container.RunConfig{
-				ContainerCmd:       cfg.ContainerCmd,
-				Workdir:            cfg.Workdir,
-				AdditionalMounts:   cfg.AdditionalMounts,
-				ContainerSetupCmds: cfg.ContainerSetupCmds,
-				InheritEnv:         cfg.InheritEnv,
-				EnvFiles:           envFiles,
-				ExtraArgs:          config.ResolveRuntimeArgs(cfg, config.SubcommandRun),
+				ContainerCmd:     cfg.ContainerCmd,
+				Workdir:          cfg.Workdir,
+				AdditionalMounts: cfg.AdditionalMounts,
+				InheritEnv:       cfg.InheritEnv,
+				EnvFiles:         envFiles,
+				ExtraArgs:        config.ResolveRuntimeArgs(cfg, config.SubcommandRun),
 			}, currentDir, tty, userArgs, autoMounts...)
 
 			return container.Exec(cfg.ContainerCmd, containerArgs)
