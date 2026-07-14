@@ -24,7 +24,7 @@ Run a command inside the chelly container.
 - Sets the container workdir to the current directory (configurable)
 - Inherits configured environment variables from the `chelly run` process into the container
 - Passes configured dotenv files to the container runtime as `--env-file` flags, in configuration order (see `env_files` below)
-- Detects stdin/stdout TTY and adds `--interactive --tty` automatically
+- Keeps stdin attached for both terminal and piped protocols; adds `--tty` only when stdin and stdout are TTYs
 - Replaces the `chelly` process with the container runtime, so the runtime's exit status, signal handling, TTY behavior, and process ownership pass through to the caller
 
 ### `chelly config list`

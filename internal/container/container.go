@@ -76,10 +76,10 @@ func IsTTY(f *os.File) bool {
 
 // RunArgs returns the argument slice for the container run command.
 func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string, autoMounts ...string) []string {
-	args := []string{"run", "--rm"}
+	args := []string{"run", "--rm", "--interactive"}
 
 	if isTTY {
-		args = append(args, "--interactive", "--tty")
+		args = append(args, "--tty")
 	}
 
 	args = append(args, cfg.ExtraArgs...)
