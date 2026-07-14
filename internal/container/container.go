@@ -106,14 +106,16 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string, autoM
 	args = append(args, "--workdir", cfg.Workdir)
 	args = append(args, ImageName)
 
+	if len(userArgs) == 0 {
+		return args
+	}
+
 	if len(cfg.ContainerSetupCmds) > 0 {
 		script := buildSetupScript(cfg.ContainerSetupCmds, userArgs)
 		args = append(args, "sh", "-lc", script)
 
-		if len(userArgs) > 0 {
-			args = append(args, "sh")
-			args = append(args, userArgs...)
-		}
+		args = append(args, "sh")
+		args = append(args, userArgs...)
 	} else {
 		args = append(args, userArgs...)
 	}

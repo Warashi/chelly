@@ -18,6 +18,7 @@ Build the chelly container image.
 
 Run a command inside the chelly container.
 
+- When no command is given, delegates command resolution to the container runtime, preserving the image's `ENTRYPOINT` and `CMD`
 - Mounts the current directory at the same path inside the container
 - When run inside a linked Git worktree, also mounts the parent directory of the Git common dir at the same path inside the container
 - If Git metadata cannot be resolved, continues without the linked worktree mount
@@ -60,7 +61,7 @@ Environment variables override config file values.
 | `config_home`          | `CHELLY_CONFIG_HOME`           | `$XDG_CONFIG_HOME/chelly`    | Build context directory                              |
 | `workdir`              | `CHELLY_WORKDIR`               | current directory            | Working directory inside the container               |
 | `additional_mounts`    | `CHELLY_ADDITIONAL_MOUNTS`     | (empty)                      | Additional volume mounts (`host:container` format, comma-separated for env var) |
-| `container_setup_cmds` | `CHELLY_CONTAINER_SETUP_CMDS`  | (empty)                      | Shell commands to run inside the container before the main command; multiple commands run in parallel with stdout redirected to stderr |
+| `container_setup_cmds` | `CHELLY_CONTAINER_SETUP_CMDS`  | (empty)                      | Shell commands to run before an explicitly supplied command; multiple commands run in parallel with stdout redirected to stderr |
 | `inherit_env`          | `CHELLY_INHERIT_ENV`           | (empty)                      | Environment variable names inherited from `chelly run` into the container |
 | `env_files`            | `CHELLY_ENV_FILES`             | (empty)                      | Dotenv files passed to the container runtime via `--env-file` (see below) |
 | `runtime_options`      | `CHELLY_RUNTIME_OPTIONS_<RUNTIME>_<SUBCOMMAND>` | (empty)      | Extra arguments for a specific container runtime and subcommand (see below) |

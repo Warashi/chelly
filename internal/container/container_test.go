@@ -143,6 +143,23 @@ func TestRunArgs_Default(t *testing.T) {
 	}
 }
 
+func TestRunArgs_WithoutCommand(t *testing.T) {
+	t.Parallel()
+
+	cfg := baseRunConfig()
+	got := container.RunArgs(cfg, testWorkDir, false, nil)
+	want := []string{
+		cmdRun, flagRM, flagInteractive,
+		flagVolume, testWorkDirMount,
+		flagWorkdir, testWorkDir,
+		container.ImageName,
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("RunArgs: got %v, want %v", got, want)
+	}
+}
+
 func TestRunArgs_WithTTY(t *testing.T) {
 	t.Parallel()
 
@@ -386,7 +403,7 @@ func TestRunArgs_SetupCmdWithCommand(t *testing.T) {
 	}
 }
 
-func TestRunArgs_SetupCmdWithoutCommand(t *testing.T) {
+func TestRunArgs_SetupCmdWithoutCommandPreservesImageDefaults(t *testing.T) {
 	t.Parallel()
 
 	cfg := baseRunConfig()
@@ -398,7 +415,6 @@ func TestRunArgs_SetupCmdWithoutCommand(t *testing.T) {
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
-		shellSh, shellFlagLC, "echo setup >&2",
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -427,7 +443,7 @@ func TestRunArgs_MultipleSetupCmdsWithCommand(t *testing.T) {
 	}
 }
 
-func TestRunArgs_MultipleSetupCmdsWithoutCommand(t *testing.T) {
+func TestRunArgs_MultipleSetupCmdsWithoutCommandPreservesImageDefaults(t *testing.T) {
 	t.Parallel()
 
 	cfg := baseRunConfig()
@@ -439,7 +455,6 @@ func TestRunArgs_MultipleSetupCmdsWithoutCommand(t *testing.T) {
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
-		shellSh, shellFlagLC, "echo setup >&2 & p0=$!; echo setup2 >&2 & p1=$!; wait $p0 && wait $p1",
 	}
 
 	if !reflect.DeepEqual(got, want) {

@@ -31,9 +31,12 @@ chelly build
 現在のディレクトリを container 内の同じパスに mount して command を実行します。
 
 ```sh
+chelly run
 chelly run -- sh
 chelly run -- git --version
 ```
+
+引数なしの `chelly run` は image の `ENTRYPOINT` と `CMD` をそのまま使用します。
 
 設定は `chelly config` で確認・変更できます。
 
