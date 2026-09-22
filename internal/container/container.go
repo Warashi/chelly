@@ -24,6 +24,7 @@ import (
 	"os/exec"
 
 	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 )
 
 const (
@@ -64,12 +65,7 @@ func BuildArgs(cfg BuildConfig, noCacheFlag bool) []string {
 
 // IsTTY reports whether f is connected to a terminal.
 func IsTTY(f *os.File) bool {
-	fi, err := f.Stat()
-	if err != nil {
-		return false
-	}
-
-	return fi.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(f.Fd()))
 }
 
 // RunArgs returns the argument slice for the container run command.

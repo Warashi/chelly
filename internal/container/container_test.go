@@ -456,6 +456,44 @@ func TestIsTTY_RegularFileFalse(t *testing.T) {
 	}
 }
 
+// /dev/null is a character device but not a terminal; a mode-bit check would
+// misclassify it and make `chelly run </dev/null` pass --tty.
+func TestIsTTY_DevNullFalse(t *testing.T) {
+	t.Parallel()
+
+	file, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	}()
+
+	if container.IsTTY(file) {
+		t.Error("IsTTY returned true for /dev/null")
+	}
+}
+
+func TestIsTTY_PtyTrue(t *testing.T) {
+	t.Parallel()
+
+	file, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
+	if err != nil {
+		t.Skipf("Open /dev/ptmx: %v", err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	}()
+
+	if !container.IsTTY(file) {
+		t.Error("IsTTY returned false for pty master")
+	}
+}
+
 func TestRun_ReturnsWrappedError(t *testing.T) {
 	t.Parallel()
 
