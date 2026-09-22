@@ -57,6 +57,7 @@ const (
 	flagWorkdir     = "--workdir"
 	flagInteractive = "--interactive"
 	flagTTY         = "--tty"
+	flagPullNever   = "--pull=never"
 	flagTag         = "--tag"
 	cmdRun          = "run"
 	cmdEcho         = "echo"
@@ -126,7 +127,7 @@ func TestRunArgs_Default(t *testing.T) {
 	cfg := baseRunConfig()
 	got := container.RunArgs(cfg, testWorkDir, false, []string{cmdEcho, cmdHello})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
@@ -144,7 +145,7 @@ func TestRunArgs_WithoutCommand(t *testing.T) {
 	cfg := baseRunConfig()
 	got := container.RunArgs(cfg, testWorkDir, false, nil)
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
@@ -161,7 +162,7 @@ func TestRunArgs_WithTTY(t *testing.T) {
 	cfg := baseRunConfig()
 	got := container.RunArgs(cfg, testWorkDir, true, []string{cmdBash})
 	want := []string{
-		cmdRun, flagRM, flagInteractive, flagTTY,
+		cmdRun, flagRM, flagInteractive, flagTTY, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
@@ -181,7 +182,7 @@ func TestRunArgs_AdditionalMounts(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagVolume, "/host1:/cont1",
 		flagVolume, "/host2:/cont2",
@@ -203,7 +204,7 @@ func TestRunArgs_AutoMounts(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"}, testCommonParent)
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagVolume, testCommonParentMount,
 		flagVolume, testHostMount,
@@ -230,7 +231,7 @@ func TestRunArgs_DeduplicatesMounts(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"}, testCommonParent)
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagVolume, testCommonParentMount,
 		flagVolume, testHostMount,
@@ -253,7 +254,7 @@ func TestRunArgs_ExtraArgs(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		testExtraArg, testExtraArg2,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
@@ -274,7 +275,7 @@ func TestRunArgs_InheritEnv(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagEnv, testInheritEnv,
 		flagEnv, testInheritEnv2,
@@ -297,7 +298,7 @@ func TestRunArgs_EnvFiles(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagEnvFile, testEnvFile,
 		flagEnvFile, testEnvFile2,
@@ -322,7 +323,7 @@ func TestRunArgs_InheritEnvAfterExtraArgs(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		"--env", "SSH_AUTH_SOCK=/tmp/socket",
 		flagVolume, testWorkDirMount,
 		flagEnv, testInheritEnv,
@@ -345,7 +346,7 @@ func TestRunArgs_ExtraArgsWithPath(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		testExtraArg,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
@@ -365,7 +366,7 @@ func TestRunArgs_NoExtraArgsWhenUnset(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
@@ -385,7 +386,7 @@ func TestRunArgs_CustomWorkdir(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkspace,
 		container.ImageName,
@@ -411,7 +412,7 @@ func TestRunArgs_AllOptions(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{cmdBash, "-c", "echo hi"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagPullNever,
 		testExtraArg,
 		flagVolume, testWorkDirMount,
 		flagVolume, "/home/user/.ssh:/home/user/.ssh",

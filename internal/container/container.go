@@ -76,6 +76,7 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string, autoM
 		args = append(args, "--tty")
 	}
 
+	args = append(args, pullPolicyArgs(cfg.ContainerCmd)...)
 	args = append(args, cfg.ExtraArgs...)
 
 	seenMounts := map[string]struct{}{}
