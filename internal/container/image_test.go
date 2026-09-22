@@ -36,7 +36,7 @@ func TestRunArgs_AppleContainerHasNoPullFlag(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
 	want := []string{
-		cmdRun, flagRM, flagInteractive,
+		cmdRun, flagRM, flagInteractive, flagInit,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,
@@ -56,7 +56,7 @@ func TestRunArgs_PullNeverWithPathContainerCmd(t *testing.T) {
 
 	got := container.RunArgs(cfg, testWorkDir, false, nil)
 	want := []string{
-		cmdRun, flagRM, flagInteractive, flagPullNever,
+		cmdRun, flagRM, flagInteractive, flagInit, flagPullNever,
 		flagVolume, testWorkDirMount,
 		flagWorkdir, testWorkDir,
 		container.ImageName,

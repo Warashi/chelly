@@ -76,6 +76,11 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string, autoM
 		args = append(args, "--tty")
 	}
 
+	// The image entrypoint exec-chains into the user command, which then sits at
+	// PID 1 and only waits for its own children. Orphans it inherits would stay
+	// zombies for the whole session, so every run asks the runtime for an init
+	// (podman, docker, and Apple container all spell it `--init`).
+	args = append(args, "--init")
 	args = append(args, pullPolicyArgs(cfg.ContainerCmd)...)
 	args = append(args, cfg.ExtraArgs...)
 

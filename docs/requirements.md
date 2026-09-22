@@ -35,6 +35,7 @@ Run a command inside the chelly container.
 - Inherits configured environment variables from the `chelly run` process into the container
 - Passes configured dotenv files to the container runtime as `--env-file` flags, in configuration order (see `env_files` below)
 - Keeps stdin attached for both terminal and piped protocols; adds `--tty` only when stdin and stdout are TTYs
+- Always passes `--init` so the runtime's init process is PID 1 and reaps orphaned processes; the same flag is used on Podman, Docker, and Apple container, and there is no option to turn it off. When the host has no init binary, the runtime's own start failure is shown as is
 - Replaces the `chelly` process with the container runtime, so the runtime's exit status, signal handling, TTY behavior, and process ownership pass through to the caller
 
 ### `chelly config list`
