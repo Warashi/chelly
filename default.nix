@@ -39,4 +39,8 @@ buildGoApplication {
       --fish <($out/bin/chelly completion fish) \
       --zsh <($out/bin/chelly completion zsh)
   '';
+
+  meta = {
+    mainProgram = "chelly";
+  };
 }
