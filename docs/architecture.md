@@ -34,7 +34,8 @@ Arg-building logic is separated from execution:
 - `container.RunArgs(cfg, wd, isTTY, userArgs, autoMounts...)` returns the `docker run ...` argument slice and always keeps stdin attached
 - When `userArgs` is empty, `RunArgs` appends nothing after the image name so the runtime uses the image's `ENTRYPOINT` and `CMD`
 - `run` passes linked worktree auto-mounts resolved by `internal/git` into `RunArgs`; Git resolution failures produce no auto-mounts
-- `container.RunConfig`/`BuildConfig.ExtraArgs` are inserted unconditionally by the `container` package; resolving *which* arguments apply for the current runtime and subcommand is the caller's responsibility (see `config.ResolveRuntimeArgs` below), so `internal/container` has no knowledge of specific runtimes
+- `container.RunConfig`/`BuildConfig.ExtraArgs` are inserted unconditionally by the `container` package; resolving *which* arguments apply for the current runtime and subcommand is the caller's responsibility (see `config.ResolveRuntimeArgs` below). The only runtime-specific knowledge inside `internal/container` is the local-image policy table described below
+- `RunArgs` inserts the runtime's pull-forbidding option (`--pull=never` on podman/docker) right after the fixed `run --rm --interactive [--tty]` prefix, before `ExtraArgs`
 - Mounts are emitted in current directory, auto-mount, then `additional_mounts` order, with duplicate mount specs removed
 - `inherit_env` is inserted as common `--env NAME` run options before the image name
 - `env_files` entries are resolved by `config.ResolveEnvFiles` in `run` (tilde expansion, absolute paths must exist, missing relative paths are skipped with a warning) and inserted as `--env-file PATH` run options before the `inherit_env` flags; duplicate-variable merging is delegated to the runtime
@@ -57,9 +58,25 @@ entries. Because resolution is keyed purely by data (`container_cmd` basename an
 subcommand name), adding a new runtime or subcommand requires no changes to
 `internal/container`.
 
+## Local-image-only policy for `run`
+
+`internal/container/image.go` is a self-contained unit that keeps `chelly run` on the locally built image. It holds one table keyed by the `container_cmd` basename with two facts per runtime:
+
+| Runtime     | Pull-forbidding run option | Existence check                                   |
+|-------------|----------------------------|---------------------------------------------------|
+| `podman`    | `--pull=never`             | `image ls -q chelly:latest` (empty output = missing) |
+| `docker`    | `--pull=never`             | same as podman                                    |
+| `container` | none (Apple container 1.4.1 `run` has no pull policy) | `image inspect chelly:latest` (non-zero exit = missing) |
+
+The two facts play different roles: the run option is the guarantee (the runtime itself refuses to pull), while `CheckImage` only exists so `run` can fail before `Exec` with a `chelly build` hint, since after `Exec` chelly can no longer shape the error. An existence check alone is not a guarantee because the image can disappear between the check and the start; on Apple container that gap is accepted and documented in requirements.
+
+`CheckImage` runs the check with stderr passed through and stdout captured, so runtime errors stay visible and stdout stays clean. `ValidateRunExtraArgs` rejects `--pull`/`--pull=…` in resolved run arguments so `runtime_options` cannot override the policy. Runtimes missing from the table are rejected by `CheckImage` rather than silently running with the default pull policy. `run` calls both before resolving mounts and env files.
+
+Unit tests inject the command runner (`checkImageWith`) instead of invoking a runtime; `internal/cmd` tests exercise the wiring with a fake `podman` script.
+
 ## Execution semantics
 
-`build` runs the container runtime as a normal child process. `run` replaces the `chelly` process with the container runtime so runtime behavior is delegated directly to the caller-facing process.
+`build` runs the container runtime as a normal child process. `run` replaces the `chelly` process with the container runtime so runtime behavior is delegated directly to the caller-facing process. `run` sets Cobra's `SilenceUsage` so pre-exec failures print only the error and never write usage text to stdout.
 
 ## Container command detection
 
@@ -67,7 +84,7 @@ subcommand name), adding a new runtime or subcommand requires no changes to
 
 ## Container image naming
 
-- Image: `chelly:latest` (hardcoded)
+- Image: `chelly:latest` (hardcoded); `build` tags it and `run` references it through the same `container.ImageName` constant, which is also what the local-image policy checks
 
 ## TTY detection
 

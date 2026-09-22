@@ -18,6 +18,15 @@ Build the chelly container image.
 
 Run a command inside the chelly container.
 
+- Uses only the locally built `chelly:latest` of the configured runtime and never pulls it from a registry
+  - Podman and Docker: passes `--pull=never`; a `--pull` option in `runtime_options` for `run` is rejected as an error
+  - Apple container: `run` has no pull policy option (verified against 1.4.1), so only the pre-exec existence check below applies and an image removed between the check and the start could still be pulled
+  - Container commands other than `container`, `podman`, and `docker` are rejected instead of running with the runtime's default pull policy
+- Checks that the image exists before starting; when it is missing, fails without touching a registry and tells the user to run `chelly build` (no automatic build, no fallback image)
+  - Podman and Docker use `image ls -q chelly:latest`, so a failing check (daemon unreachable, permission denied) is reported as that failure, not as a missing image
+  - Apple container uses `image inspect chelly:latest`; a non-zero exit is reported as a missing image with the runtime's stderr shown (exit code semantics not yet verified on macOS)
+  - The check writes nothing to stdout
+- Prints only the error, not the command usage, when `run` fails before starting the container
 - When no command is given, delegates command resolution to the container runtime, preserving the image's `ENTRYPOINT` and `CMD`
 - Mounts the current directory at the same path inside the container
 - When run inside a linked Git worktree, also mounts the parent directory of the Git common dir at the same path inside the container
@@ -81,6 +90,7 @@ being run maps to `subcommand` (`run` for `chelly run`, `build` for `chelly buil
 - `subcommand` must be one of `run` or `build`.
 - Duplicate entries for the same `runtime`/`subcommand` pair are rejected when
   `run`/`build` validate the loaded configuration.
+- `run` entries must not contain `--pull` (see `chelly run` above).
 
 ### `env_files`
 

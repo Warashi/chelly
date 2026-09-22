@@ -38,6 +38,8 @@ chelly run -- git --version
 
 引数なしの `chelly run` は image の `ENTRYPOINT` と `CMD` をそのまま使用します。
 
+`chelly run` はローカルにビルド済みの image だけを使い、レジストリから取得することはありません。image が無い場合は起動せずに失敗するので、先に `chelly build` を実行してください。
+
 設定は `chelly config` で確認・変更できます。
 
 ```sh
