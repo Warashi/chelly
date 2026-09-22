@@ -33,7 +33,7 @@ var (
 	ErrPullOptionConflict = errors.New("--pull is managed by chelly and cannot be set in runtime_options")
 
 	// ErrImageNotFound is returned when the chelly image does not exist locally.
-	ErrImageNotFound = errors.New("image not found locally; run `chelly build` first")
+	ErrImageNotFound = errors.New("chelly image not found locally")
 
 	// ErrUnsupportedRuntime is returned when chelly cannot guarantee local-image-only
 	// execution for the configured container command.
@@ -109,7 +109,7 @@ func checkImageWith(ctx context.Context, output outputFunc, containerCmd string)
 		if _, err := output(ctx, containerCmd, "image", "inspect", ImageName); err != nil {
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
-				return fmt.Errorf("%w: %s (%s)", ErrImageNotFound, ImageName, runtime)
+				return fmt.Errorf("%w: %s (%s); run `chelly build` first", ErrImageNotFound, ImageName, runtime)
 			}
 
 			return fmt.Errorf("checking image with %s: %w", runtime, err)
@@ -125,7 +125,7 @@ func checkImageWith(ctx context.Context, output outputFunc, containerCmd string)
 		}
 
 		if len(bytes.TrimSpace(stdout)) == 0 {
-			return fmt.Errorf("%w: %s (%s)", ErrImageNotFound, ImageName, runtime)
+			return fmt.Errorf("%w: %s (%s); run `chelly build` first", ErrImageNotFound, ImageName, runtime)
 		}
 
 		return nil
