@@ -32,18 +32,20 @@ func newRunCommand() *cobra.Command {
 		Short:              "Run a command in the chelly container",
 		Long:               `Run a command inside the chelly container, mounting the current directory.`,
 		DisableFlagParsing: true,
-		RunE: func(_ *cobra.Command, args []string) error {
+		SilenceUsage:       true,
+		RunE: func(cobraCmd *cobra.Command, args []string) error {
 			cfg, err := config.LoadConfig()
 			if err != nil {
 				return fmt.Errorf("loading config: %w", err)
 			}
 
-			if err := config.ValidateInheritEnv(cfg.InheritEnv); err != nil {
-				return fmt.Errorf("validating inherit_env: %w", err)
+			extraArgs, err := validateRunConfig(cfg)
+			if err != nil {
+				return err
 			}
 
-			if err := config.ValidateRuntimeOptions(cfg.RuntimeOptions); err != nil {
-				return fmt.Errorf("validating runtime_options: %w", err)
+			if err := container.CheckImage(cobraCmd.Context(), cfg.ContainerCmd); err != nil {
+				return fmt.Errorf("checking image: %w", err)
 			}
 
 			currentDir, err := os.Getwd()
@@ -73,10 +75,29 @@ func newRunCommand() *cobra.Command {
 				AdditionalMounts: cfg.AdditionalMounts,
 				InheritEnv:       cfg.InheritEnv,
 				EnvFiles:         envFiles,
-				ExtraArgs:        config.ResolveRuntimeArgs(cfg, config.SubcommandRun),
+				ExtraArgs:        extraArgs,
 			}, currentDir, tty, userArgs, autoMounts...)
 
 			return container.Exec(cfg.ContainerCmd, containerArgs)
 		},
 	}
+}
+
+// validateRunConfig checks the run-related configuration and returns the extra
+// runtime arguments that apply to `run`.
+func validateRunConfig(cfg config.Config) ([]string, error) {
+	if err := config.ValidateInheritEnv(cfg.InheritEnv); err != nil {
+		return nil, fmt.Errorf("validating inherit_env: %w", err)
+	}
+
+	if err := config.ValidateRuntimeOptions(cfg.RuntimeOptions); err != nil {
+		return nil, fmt.Errorf("validating runtime_options: %w", err)
+	}
+
+	extraArgs := config.ResolveRuntimeArgs(cfg, config.SubcommandRun)
+	if err := container.ValidateRunExtraArgs(extraArgs); err != nil {
+		return nil, fmt.Errorf("validating runtime_options: %w", err)
+	}
+
+	return extraArgs, nil
 }
