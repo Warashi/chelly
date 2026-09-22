@@ -71,4 +71,4 @@ subcommand name), adding a new runtime or subcommand requires no changes to
 
 ## TTY detection
 
-`IsTTY(f *os.File) bool` checks `os.ModeCharDevice` on the file's stat mode. `run` always adds `--interactive` so piped protocols can keep reading stdin, and adds `--tty` only when both stdin and stdout are TTYs.
+`IsTTY(f *os.File) bool` uses `term.IsTerminal` (an isatty-style termios ioctl) rather than `os.ModeCharDevice`, because `/dev/null` is also a character device and must not count as a terminal. `run` always adds `--interactive` so piped protocols can keep reading stdin, and adds `--tty` only when both stdin and stdout are TTYs.
