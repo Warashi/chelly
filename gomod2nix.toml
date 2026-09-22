@@ -54,8 +54,12 @@ schema = 3
     hash = 'sha256-NkGFiDPoCxbr3LFsI6OCygjjkY0rdmg5ggvVVwpyDQ4='
 
   [mod.'golang.org/x/sys']
-    version = 'v0.29.0'
-    hash = 'sha256-qfsodJQ1H1CBI8yQWOvsXJgY5qHmiuw566HrrIseYHI='
+    version = 'v0.48.0'
+    hash = 'sha256-u+LwI76YIeg1asQKZItD2mnL4Yvx8veLhBuL8wv60Ls='
+
+  [mod.'golang.org/x/term']
+    version = 'v0.46.0'
+    hash = 'sha256-w/LexmQ91G8N1zdjIujuaEIONVfAg7U/DciHVYp0+QY='
 
   [mod.'golang.org/x/text']
     version = 'v0.28.0'
