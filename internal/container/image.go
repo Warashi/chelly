@@ -97,7 +97,7 @@ func CheckImage(ctx context.Context, containerCmd string) error {
 }
 
 func checkImageWith(ctx context.Context, output outputFunc, containerCmd string) error {
-	runtime := RuntimeName(containerCmd)
+	runtime := runtimeName(containerCmd)
 
 	policy, ok := runtimePolicies[runtime]
 	if !ok {
@@ -132,14 +132,14 @@ func checkImageWith(ctx context.Context, output outputFunc, containerCmd string)
 	}
 }
 
-// RuntimeName returns the runtime identity used to look up runtime-specific behavior.
-func RuntimeName(containerCmd string) string {
+// runtimeName returns the runtime identity used to look up runtime-specific behavior.
+func runtimeName(containerCmd string) string {
 	return filepath.Base(containerCmd)
 }
 
 // pullPolicyArgs returns the run options that stop the runtime from pulling the image.
 func pullPolicyArgs(containerCmd string) []string {
-	return runtimePolicies[RuntimeName(containerCmd)].pullArgs
+	return runtimePolicies[runtimeName(containerCmd)].pullArgs
 }
 
 // ValidateRunExtraArgs rejects run arguments that would change the pull policy.
