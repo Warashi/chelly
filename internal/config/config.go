@@ -85,6 +85,7 @@ type Config struct {
 	ContainerCmd     string          `toml:"container_cmd"`
 	ConfigHome       string          `toml:"config_home"`
 	Workdir          string          `toml:"workdir"`
+	Init             bool            `toml:"init"`
 	AdditionalMounts []string        `toml:"additional_mounts"`
 	InheritEnv       []string        `toml:"inherit_env"`
 	EnvFiles         []string        `toml:"env_files"`
@@ -469,6 +470,7 @@ func LoadConfigFrom(configDir string) (Config, error) {
 
 	viperInst.SetDefault("container_cmd", DetectContainerCmd())
 	viperInst.SetDefault("config_home", configDir)
+	viperInst.SetDefault("init", true)
 	viperInst.SetDefault("additional_mounts", []string{})
 	viperInst.SetDefault("inherit_env", []string{})
 	viperInst.SetDefault("env_files", []string{})
@@ -499,6 +501,7 @@ func LoadConfigFrom(configDir string) (Config, error) {
 		ContainerCmd:     viperInst.GetString("container_cmd"),
 		ConfigHome:       viperInst.GetString("config_home"),
 		Workdir:          workdir,
+		Init:             viperInst.GetBool("init"),
 		AdditionalMounts: configListValueFrom(viperInst, keyAdditionalMounts),
 		InheritEnv:       configListValueFrom(viperInst, keyInheritEnv),
 		EnvFiles:         configListValueFrom(viperInst, keyEnvFiles),
