@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -37,6 +38,7 @@ const (
 	keyAdditionalMounts = "additional_mounts"
 	keyInheritEnv       = "inherit_env"
 	keyEnvFiles         = "env_files"
+	keyInit             = "init"
 	keyRuntimeOptions   = "runtime_options"
 )
 
@@ -49,6 +51,9 @@ const (
 
 // ErrUnknownConfigKey is returned when an unrecognized configuration key is used.
 var ErrUnknownConfigKey = errors.New("unknown config key")
+
+// ErrInvalidBool is returned when a boolean configuration key is set to a non-boolean value.
+var ErrInvalidBool = errors.New("invalid boolean value")
 
 // ErrInvalidEnvName is returned when inherit_env contains an invalid environment variable name.
 var ErrInvalidEnvName = errors.New("invalid environment variable name")
@@ -98,6 +103,7 @@ var validConfigKeys = []string{
 	"container_cmd",
 	"config_home",
 	"workdir",
+	keyInit,
 	keyAdditionalMounts,
 	keyInheritEnv,
 	keyEnvFiles,
@@ -127,6 +133,8 @@ func GetConfigValue(cfg Config, key string) (string, error) {
 		return cfg.ConfigHome, nil
 	case "workdir":
 		return cfg.Workdir, nil
+	case keyInit:
+		return strconv.FormatBool(cfg.Init), nil
 	case keyAdditionalMounts:
 		return strings.Join(cfg.AdditionalMounts, ","), nil
 	case keyInheritEnv:
@@ -193,16 +201,23 @@ func configListValueFrom(viperInst *viper.Viper, key string) []string {
 	return viperInst.GetStringSlice(key)
 }
 
-func applyConfigValue(data map[string]any, key, value string) {
-	var configValue any
-
+func parseConfigValue(key, value string) (any, error) {
 	switch key {
 	case keyAdditionalMounts, keyInheritEnv, keyEnvFiles:
-		configValue = configListValue(value)
-	default:
-		configValue = value
-	}
+		return configListValue(value), nil
+	case keyInit:
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			return nil, fmt.Errorf("%w %q for %s", ErrInvalidBool, value, key)
+		}
 
+		return b, nil
+	default:
+		return value, nil
+	}
+}
+
+func applyConfigValue(data map[string]any, key string, configValue any) {
 	parts := strings.Split(key, ".")
 
 	current := data
@@ -264,6 +279,17 @@ func SetConfigValue(configDir, key, value string) error {
 		return fmt.Errorf("%w %q: valid keys are %s", ErrUnknownConfigKey, key, strings.Join(validConfigKeys, ", "))
 	}
 
+	var configValue any
+
+	if !isRuntimeOption {
+		var err error
+
+		configValue, err = parseConfigValue(key, value)
+		if err != nil {
+			return err
+		}
+	}
+
 	data, err := readConfigData(configDir)
 	if err != nil {
 		return err
@@ -272,7 +298,7 @@ func SetConfigValue(configDir, key, value string) error {
 	if isRuntimeOption {
 		applyRuntimeOptionValue(data, runtime, subcommand, value)
 	} else {
-		applyConfigValue(data, key, value)
+		applyConfigValue(data, key, configValue)
 	}
 
 	return writeConfigData(configDir, data)
@@ -470,7 +496,7 @@ func LoadConfigFrom(configDir string) (Config, error) {
 
 	viperInst.SetDefault("container_cmd", DetectContainerCmd())
 	viperInst.SetDefault("config_home", configDir)
-	viperInst.SetDefault("init", true)
+	viperInst.SetDefault(keyInit, true)
 	viperInst.SetDefault("additional_mounts", []string{})
 	viperInst.SetDefault("inherit_env", []string{})
 	viperInst.SetDefault("env_files", []string{})
@@ -501,7 +527,7 @@ func LoadConfigFrom(configDir string) (Config, error) {
 		ContainerCmd:     viperInst.GetString("container_cmd"),
 		ConfigHome:       viperInst.GetString("config_home"),
 		Workdir:          workdir,
-		Init:             viperInst.GetBool("init"),
+		Init:             viperInst.GetBool(keyInit),
 		AdditionalMounts: configListValueFrom(viperInst, keyAdditionalMounts),
 		InheritEnv:       configListValueFrom(viperInst, keyInheritEnv),
 		EnvFiles:         configListValueFrom(viperInst, keyEnvFiles),

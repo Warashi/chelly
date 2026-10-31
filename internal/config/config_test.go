@@ -131,6 +131,7 @@ func TestGetConfigValue(t *testing.T) {
 		{"container_cmd", testContainerCmdPodman},
 		{"config_home", testConfigHome},
 		{"workdir", testWorkspace},
+		{"init", "false"},
 		{"additional_mounts", testMountA + "," + testMountB},
 		{"inherit_env", testInheritEnv + "," + testInheritEnv2},
 		{"env_files", testEnvFile + "," + testEnvFile2},
@@ -435,6 +436,48 @@ func TestSetConfigValue_EnvFiles(t *testing.T) {
 	}
 
 	assertStringSlice(t, "EnvFiles", cfg.EnvFiles, []string{testEnvFile, testEnvFile2})
+}
+
+// init is written as a TOML boolean so the file stays valid for tools that
+// read it with the declared type.
+func TestSetConfigValue_Init(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	if err := config.SetConfigValue(dir, "init", "false"); err != nil {
+		t.Fatalf("SetConfigValue: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(dir, "config.toml")) //nolint:gosec // test-owned temp path
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	var written struct {
+		Init bool `toml:"init"`
+	}
+	if err := toml.Unmarshal(content, &written); err != nil {
+		t.Fatalf("config.toml should hold init as a boolean: %v\n%s", err, content)
+	}
+
+	cfg, err := config.LoadConfigFrom(dir)
+	if err != nil {
+		t.Fatalf("LoadConfigFrom: %v", err)
+	}
+
+	if cfg.Init {
+		t.Error("Init: got true, want false")
+	}
+}
+
+func TestSetConfigValue_InitRejectsNonBoolean(t *testing.T) {
+	t.Parallel()
+
+	err := config.SetConfigValue(t.TempDir(), "init", "maybe")
+	if !errors.Is(err, config.ErrInvalidBool) {
+		t.Errorf("got %v, want %v", err, config.ErrInvalidBool)
+	}
 }
 
 func TestSetConfigValue_UnknownKey(t *testing.T) {

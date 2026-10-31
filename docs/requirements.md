@@ -48,7 +48,7 @@ Print all current effective configuration values in TOML format.
 
 Print the effective value of a single configuration key.
 
-- `key`: one of `container_cmd`, `config_home`, `workdir`, `additional_mounts`, `inherit_env`, `env_files`, or `runtime_options.<runtime>.<subcommand>`
+- `key`: one of `container_cmd`, `config_home`, `workdir`, `init`, `additional_mounts`, `inherit_env`, `env_files`, or `runtime_options.<runtime>.<subcommand>`
 - For `additional_mounts`, `inherit_env`, `env_files`, and `runtime_options.<runtime>.<subcommand>`, prints values as a comma-separated string
 
 ### `chelly config set <key> <value>`
@@ -57,6 +57,7 @@ Write a key-value pair to `config.toml`.
 
 - Creates the config file and its directory if they do not exist
 - For `additional_mounts`, `inherit_env`, `env_files`, and `runtime_options.<runtime>.<subcommand>`, `value` is a comma-separated list
+- For `init`, `value` is a boolean (`true`/`false`) and is written as a TOML boolean
 - Environment variable overrides still take precedence when reading back via `list`/`get`
 
 ## Configuration
