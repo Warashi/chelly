@@ -72,6 +72,7 @@ func newRunCommand() *cobra.Command {
 			containerArgs := container.RunArgs(container.RunConfig{
 				ContainerCmd:     cfg.ContainerCmd,
 				Workdir:          cfg.Workdir,
+				Init:             true,
 				AdditionalMounts: cfg.AdditionalMounts,
 				InheritEnv:       cfg.InheritEnv,
 				EnvFiles:         envFiles,

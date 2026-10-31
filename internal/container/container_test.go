@@ -77,6 +77,7 @@ func baseRunConfig() RunConfig {
 	return RunConfig{
 		ContainerCmd:     testContainerCmdDocker,
 		Workdir:          testWorkDir,
+		Init:             true,
 		AdditionalMounts: nil,
 		InheritEnv:       nil,
 		EnvFiles:         nil,
@@ -141,8 +142,8 @@ func TestRunArgs_Default(t *testing.T) {
 }
 
 // Every supported runtime accepts `--init` with the same spelling, so the
-// orphan-reaping init is requested unconditionally, before any runtime-specific
-// or user-supplied option.
+// orphan-reaping init is requested without branching on the runtime, before any
+// runtime-specific or user-supplied option.
 func TestRunArgs_InitOnEveryRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -161,6 +162,28 @@ func TestRunArgs_InitOnEveryRuntime(t *testing.T) {
 				t.Errorf("RunArgs: got %v, want prefix %v", got, wantPrefix)
 			}
 		})
+	}
+}
+
+// Podman refuses `--init` when the PID namespace is shared, so a run that joins
+// another namespace must be able to go without it.
+func TestRunArgs_WithoutInit(t *testing.T) {
+	t.Parallel()
+
+	cfg := baseRunConfig()
+	cfg.Init = false
+
+	got := container.RunArgs(cfg, testWorkDir, false, []string{"ls"})
+	want := []string{
+		cmdRun, flagRM, flagInteractive, flagPullNever,
+		flagVolume, testWorkDirMount,
+		flagWorkdir, testWorkDir,
+		container.ImageName,
+		"ls",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("RunArgs: got %v, want %v", got, want)
 	}
 }
 
@@ -429,6 +452,7 @@ func TestRunArgs_AllOptions(t *testing.T) {
 	cfg := RunConfig{
 		ContainerCmd:     testContainerCmdPodman,
 		Workdir:          testWorkspace,
+		Init:             true,
 		AdditionalMounts: []string{"/home/user/.ssh:/home/user/.ssh"},
 		InheritEnv:       []string{testInheritEnv},
 		EnvFiles:         []string{testEnvFile},

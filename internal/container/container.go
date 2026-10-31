@@ -44,6 +44,7 @@ type BuildConfig struct {
 type RunConfig struct {
 	ContainerCmd     string
 	Workdir          string
+	Init             bool
 	AdditionalMounts []string
 	InheritEnv       []string
 	EnvFiles         []string
@@ -78,9 +79,13 @@ func RunArgs(cfg RunConfig, workDir string, isTTY bool, userArgs []string, autoM
 
 	// The image entrypoint exec-chains into the user command, which then sits at
 	// PID 1 and only waits for its own children. Orphans it inherits would stay
-	// zombies for the whole session, so every run asks the runtime for an init
-	// (podman, docker, and Apple container all spell it `--init`).
-	args = append(args, "--init")
+	// zombies for the whole session, so a run asks the runtime for an init
+	// (podman, docker, and Apple container all spell it `--init`). It stays
+	// optional because podman refuses it when the PID namespace is shared.
+	if cfg.Init {
+		args = append(args, "--init")
+	}
+
 	args = append(args, pullPolicyArgs(cfg.ContainerCmd)...)
 	args = append(args, cfg.ExtraArgs...)
 
